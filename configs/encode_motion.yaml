@@ -9,4 +9,4 @@ start: !!null
 end: !!null
 
 ckpt_name: last
-device: cuda
+device: cuda:1

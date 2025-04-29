@@ -4,5 +4,5 @@ defaults:
 
 run_dir: ???
 ckpt: last
-device: cuda
+device: cuda:1
 eval_mode: true

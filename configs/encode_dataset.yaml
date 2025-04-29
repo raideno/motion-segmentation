@@ -12,4 +12,4 @@ defaults:
 run_dir: ???
 
 ckpt_name: last
-device: cuda
+device: cuda:1

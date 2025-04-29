@@ -2,7 +2,7 @@ defaults:
   - defaults
   - _self_
 
-device: cuda
+device: cuda:1
 
 run_dir: ???
 protocol: all #  (is all 4), normal (a), threshold (b), nsim (c), guo (d)

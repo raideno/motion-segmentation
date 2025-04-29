@@ -1,3 +1,10 @@
+datasets/annotations/humanml3d/sent_embeddings/
+datasets/annotations/humanml3d/token_embeddings/
+datasets/motions/
+
+models/
+    
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -5,6 +12,9 @@ __pycache__/
 
 # C extensions
 *.so
+*.venv*
+logs/
+
 
 # Distribution / packaging
 .Python
