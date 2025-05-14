@@ -9,7 +9,6 @@ hydra:
 seed: 1234
 logger_level: INFO
 
-
 defaults:
   - _self_
   - override hydra/job_logging: tqdm

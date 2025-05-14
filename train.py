@@ -6,7 +6,6 @@ from src.config import read_config, save_config
 
 logger = logging.getLogger(__name__)
 
-
 @hydra.main(config_path="configs", config_name="train", version_base="1.3")
 def train(cfg: DictConfig):
     # Resuming if needed
@@ -50,8 +49,8 @@ def train(cfg: DictConfig):
 
     logger.info("Training")
     trainer = instantiate(cfg.trainer)
-    trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=ckpt)
 
+    trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=ckpt)
 
 if __name__ == "__main__":
     train()

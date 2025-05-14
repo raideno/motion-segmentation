@@ -2,7 +2,8 @@ defaults:
   - defaults
   - _self_
 
-base_folder: datasets/motions/pose_data
+base_folder: /home/nadir/disk/codes/human-ml3d-code/amass_data
+# base_folder: datasets/motions/pose_data
 output_folder: datasets/motions/guoh3dfeats
 
 force_redo: false # true to recompute the features

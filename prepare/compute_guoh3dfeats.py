@@ -48,9 +48,8 @@ def compute_guoh3dfeats(cfg: DictConfig):
 
     output_folder_M = os.path.join(output_folder, "M")
 
-    print("Get h3d features from Guo et al.")
-    print("The processed motions will be stored in this folder:")
-    print(output_folder)
+    print("[base-folder]:", base_folder)
+    print("[output_folder]:", output_folder)
 
     iterator = loop_amass(
         base_folder, output_folder, ext=".npy", newext=".npy", force_redo=force_redo
@@ -58,7 +57,9 @@ def compute_guoh3dfeats(cfg: DictConfig):
 
     for motion_path, new_motion_path in iterator:
         joints = np.load(motion_path)
-
+        
+        print("[joints.shape]:", joints.shape)
+        
         if "humanact12" not in motion_path:
             # This is because the authors of HumanML3D
             # save the motions by swapping Y and Z (det = -1)

@@ -8,9 +8,18 @@ dataloader:
   batch_size: 32
   num_workers: 8
 
+data: ???
+
 defaults:
-  - data: humanml3d
+  # - data: babel
   - model: tmr
   - trainer
   - defaults
   - _self_
+
+# defaults:
+#   - data: humanml3d
+#   - model: tmr
+#   - trainer
+#   - defaults
+#   - _self_

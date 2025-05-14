@@ -7,7 +7,6 @@ from .temos import TEMOS
 from .losses import InfoNCE_with_filtering
 from .metrics import all_contrastive_metrics
 
-
 # x.T will be deprecated in pytorch
 def transpose(x):
     return x.permute(*torch.arange(x.ndim - 1, -1, -1))
@@ -85,6 +84,8 @@ class TMR(TEMOS):
         self.validation_step_m_latents = []
         self.validation_step_sent_emb = []
 
+    # NOTE: the key difference with TEMOS is in the loss. TMR adds:
+    # - add a contrastive loss.
     def compute_loss(self, batch: Dict, return_all=False) -> Dict:
         text_x_dict = batch["text_x_dict"]
         motion_x_dict = batch["motion_x_dict"]
@@ -144,6 +145,7 @@ class TMR(TEMOS):
 
         return losses
 
+    # NOTE: called once per batch and log batch level losses or metrics 
     def validation_step(self, batch: Dict, batch_idx: int) -> Tensor:
         bs = len(batch["motion_x_dict"]["x"])
         losses, t_latents, m_latents = self.compute_loss(batch, return_all=True)
@@ -165,6 +167,7 @@ class TMR(TEMOS):
 
         return losses["loss"]
 
+    # NOTE: this is called after all validation_steps are done, after validation_step is called on all batches; once per batch
     def on_validation_epoch_end(self):
         # Compute contrastive metrics on the whole batch
         t_latents = torch.cat(self.validation_step_t_latents)

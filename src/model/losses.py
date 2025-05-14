@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 
-
 # For reference
 # https://stats.stackexchange.com/questions/7440/kl-divergence-between-two-univariate-gaussians
 # https://pytorch.org/docs/stable/_modules/torch/distributions/kl.html#kl_divergence
@@ -18,7 +17,7 @@ class KLLoss:
     def __repr__(self):
         return "KLLoss()"
 
-
+# NOTE: its goal is to pull matching pairs together and push non-matching pairs apart in the embedding space.
 class InfoNCE_with_filtering:
     def __init__(self, temperature=0.7, threshold_selfsim=0.8):
         self.temperature = temperature
@@ -34,11 +33,11 @@ class InfoNCE_with_filtering:
         bs, device = len(x), x.device
         sim_matrix = self.get_sim_matrix(x, y) / self.temperature
 
+        # NOTE: filtering of false negatives; we mask pairs that are too semantically similar (according to a threshold)
         if sent_emb is not None and self.threshold_selfsim:
             # put the threshold value between -1 and 1
             real_threshold_selfsim = 2 * self.threshold_selfsim - 1
-            # Filtering too close values
-            # mask them by putting -inf in the sim_matrix
+            # mask false negatives by putting -inf in the sim_matrix
             selfsim = sent_emb @ sent_emb.T
             selfsim_nodiag = selfsim - selfsim.diag().diag()
             idx = torch.where(selfsim_nodiag > real_threshold_selfsim)
@@ -47,7 +46,13 @@ class InfoNCE_with_filtering:
         labels = torch.arange(bs, device=device)
 
         total_loss = (
-            F.cross_entropy(sim_matrix, labels) + F.cross_entropy(sim_matrix.T, labels)
+            # NOTE: treats each row of sim_matrix as a softmax distributuon over candidates (i.e y embeddings) and penalize
+            # the model if the highest score isn't at the true match (position i).
+            # this makes the model increase similarity between x_i and y_i and decrease similarity between x_i and y_j for j != i
+            F.cross_entropy(sim_matrix, labels)
+                +
+            # NOTE: same as above but in reverse
+            F.cross_entropy(sim_matrix.T, labels)
         ) / 2
 
         return total_loss

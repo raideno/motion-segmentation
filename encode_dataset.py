@@ -1,13 +1,13 @@
 import os
-from omegaconf import DictConfig
-import logging
-import hydra
 import json
+import tqdm
+import hydra
+import logging
+
+from omegaconf import DictConfig
 from hydra.core.hydra_config import HydraConfig
 
-
 logger = logging.getLogger(__name__)
-
 
 def x_dict_to_device(x_dict, device):
     import torch
@@ -21,7 +21,6 @@ def x_dict_to_device(x_dict, device):
 def write_json(data, path):
     with open(path, "w") as ff:
         ff.write(json.dumps(data, indent=4))
-
 
 @hydra.main(version_base=None, config_path="configs", config_name="encode_dataset")
 def encode_dataset(cfg: DictConfig) -> None:
@@ -57,12 +56,15 @@ def encode_dataset(cfg: DictConfig) -> None:
         shuffle=False,
     )
     seed_everything(cfg.seed)
+    
+    print("[len(dataset)]:", len(dataset))
+    print("[batch-size]:", cfg.dataloader.batch_size)
 
     all_latents = []
     all_keyids = []
 
     with torch.inference_mode():
-        for batch in dataloader:
+        for batch in tqdm.tqdm(iterable=dataloader, total=len(dataloader), desc="[encoding]:"):
             motion_x_dict = batch["motion_x_dict"]
             x_dict_to_device(motion_x_dict, device)
             latents = model.encode(motion_x_dict, sample_mean=True)

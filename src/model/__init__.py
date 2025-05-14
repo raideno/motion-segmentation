@@ -2,3 +2,5 @@ from .actor import PositionalEncoding, ACTORStyleEncoder, ACTORStyleDecoder  # n
 from .temos import TEMOS  # noqa
 from .tmr import TMR  # noqa
 from .text_encoder import TextToEmb  # noqa
+
+from .fsb_segmentation import FullSequenceBasedSegmentationModel

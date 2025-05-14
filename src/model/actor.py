@@ -7,7 +7,7 @@ import numpy as np
 
 from einops import repeat
 
-
+# NOTE: sinusoidal positional encoding
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, dropout=0.1, max_len=5000, batch_first=False) -> None:
         super().__init__()
@@ -50,15 +50,21 @@ class ACTORStyleEncoder(nn.Module):
 
         self.nfeats = nfeats
         self.projection = nn.Linear(nfeats, latent_dim)
+        self.latent_dim = latent_dim
+        
 
         self.vae = vae
+        # NOTE: the cls token; when vae is True, we have 2 tokens one for the mean and one for the std
         self.nbtokens = 2 if vae else 1
         self.tokens = nn.Parameter(torch.randn(self.nbtokens, latent_dim))
 
+        # NOTE: sinusoidal positional encodings
         self.sequence_pos_encoding = PositionalEncoding(
             latent_dim, dropout=dropout, batch_first=True
         )
 
+        # NOTE: the transformer can take motion of any length, the only limit is gpu memory as the attention
+        # matrix [T x T] grows quadratically with the sequence length
         seq_trans_encoder_layer = nn.TransformerEncoderLayer(
             d_model=latent_dim,
             nhead=num_heads,
@@ -73,25 +79,36 @@ class ACTORStyleEncoder(nn.Module):
         )
 
     def forward(self, x_dict: Dict) -> Tensor:
+        # NOTE: [Batch, Time, nfeats]
         x = x_dict["x"]
+        # NOTE: [Batch, Time]
         mask = x_dict["mask"]
 
+        # NOTE: [Batch, Time, nfeats] -> [Batch, Time, latent_dim]
         x = self.projection(x)
 
         device = x.device
         bs = len(x)
 
+        # NOTE: create the cls token(s) for each sample in the batch
         tokens = repeat(self.tokens, "nbtoken dim -> bs nbtoken dim", bs=bs)
+        # NOTE: [Batch, nb_tokens + T, latent_dim]
         xseq = torch.cat((tokens, x), 1)
 
+        # NOTE: since not all sequences in the batch have the same length, we pad the shorter ones to match the longest one.
         token_mask = torch.ones((bs, self.nbtokens), dtype=bool, device=device)
+        # NOTE this mask is used to ignore the padding tokens
         aug_mask = torch.cat((token_mask, mask), 1)
 
-        # add positional encoding
+        # NOTE: add positional encoding
         xseq = self.sequence_pos_encoding(xseq)
+        # NOTE: apply the transformer
         final = self.seqTransEncoder(xseq, src_key_padding_mask=~aug_mask)
+        
+        # NOTE: only return the cls token(s)
         return final[:, : self.nbtokens]
 
+# NOTE: it takes the latent representatiuon (learned by the encoder) and generates an output sequence,
 
 class ACTORStyleDecoder(nn.Module):
     # Similar to ACTOR Decoder
@@ -130,25 +147,37 @@ class ACTORStyleDecoder(nn.Module):
         self.final_layer = nn.Linear(latent_dim, output_feats)
 
     def forward(self, z_dict: Dict) -> Tensor:
+        # NOTE: latent representation from the encoder
         z = z_dict["z"]
+        # NOTE: mask for padding
         mask = z_dict["mask"]
 
         latent_dim = z.shape[1]
+        # NOTE: batch size and number of frames
         bs, nframes = mask.shape
 
         z = z[:, None]  # sequence of 1 element for the memory
 
-        # Construct time queries
+        # NOTE: construction of time queries, this are learnable queries that get transformed back into the motion by the decoder
         time_queries = torch.zeros(bs, nframes, latent_dim, device=z.device)
         time_queries = self.sequence_pos_encoding(time_queries)
 
-        # Pass through the transformer decoder
-        # with the latent vector for memory
+        # NOTE: we pass the time queries through the decoder
         output = self.seqTransDecoder(
-            tgt=time_queries, memory=z, tgt_key_padding_mask=~mask
+            tgt=time_queries,
+            # NOTE: memory (Tensor) – the sequence from the last layer of the encoder (required).
+            memory=z,
+            # NOTE: tells the transformer where to ignore padding during decoding; (1 for valid positions, 0 for padding).
+            tgt_key_padding_mask=~mask
         )
+        
+        # NOTE: the transformer have two types of attention inside each layer;
+        # 1. self attention on tgt.
+        # 2. corss attention on memory.
 
         output = self.final_layer(output)
-        # zero for padded area
+        
+        # NOTE: zero for padded area as we don't want to reconstruct padded positions.
         output[~mask] = 0
+        
         return output

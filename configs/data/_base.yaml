@@ -19,3 +19,4 @@ text_to_sent_emb:
   preload: true
 
 preload: true
+tiny: false

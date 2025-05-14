@@ -4,7 +4,6 @@ import hydra
 
 logger = logging.getLogger(__name__)
 
-
 @hydra.main(version_base=None, config_path="configs", config_name="text_motion_sim")
 def text_motion_sim(cfg: DictConfig) -> None:
     device = cfg.device

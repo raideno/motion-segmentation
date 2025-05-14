@@ -96,7 +96,7 @@ def encode_motions_windows(cfg: DictConfig) -> None:
                 
                 np.save(output_path, motion_windows_embeddings)
             except Exception as exception:
-                logger.error(f"Error processing {motion_filename}: {e}")
+                logger.error(f"Error processing {motion_filename}: {exception}")
                 logger.debug(traceback.format_exc())
                 continue
         

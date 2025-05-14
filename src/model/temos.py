@@ -1,12 +1,10 @@
-from typing import List, Dict, Optional
-
 import torch
 import torch.nn as nn
+
 from torch import Tensor
-from pytorch_lightning import LightningModule
-
 from src.model.losses import KLLoss
-
+from typing import List, Dict, Optional
+from pytorch_lightning import LightningModule
 
 def length_to_mask(length: List[int], device: torch.device = None) -> Tensor:
     if device is None:
@@ -21,9 +19,19 @@ def length_to_mask(length: List[int], device: torch.device = None) -> Tensor:
     ) < length.unsqueeze(1)
     return mask
 
-
+# NOTE:  LightningModule is a high-level abstraction over torch.nn.Module provided by PyTorch Lightning.
+# It allows to easily automate much of the training and validation boilerplate.
+# You only need to focus on what your model does and not how to train it.
+# The following functions need to be implemented:
+# - __init__()
+# - forward()
+# - training_step(): Logic for one training step (loss computation).
+# - validation_step(): Logic for one validation batch.
+# - on_validation_epoch_end(): Logic for metrics aggregation or logging.
+# - configure_optimizers(): Return the optimizer and learning rate scheduler.
 class TEMOS(LightningModule):
-    r"""TEMOS: Generating diverse human motions
+    r"""
+    TEMOS: Generating diverse human motions
     from textual descriptions
     Find more information about the model on the following website:
     https://mathis.petrovich.fr/temos
@@ -38,7 +46,6 @@ class TEMOS(LightningModule):
         lmd: dictionary of losses weights (optional).
         lr: learninig rate for the optimizer (optional).
     """
-
     def __init__(
         self,
         motion_encoder: nn.Module,
@@ -112,7 +119,7 @@ class TEMOS(LightningModule):
         encoder = self._find_encoder(inputs, modality)
         encoded = encoder(inputs)
 
-        # Sampling
+        # NOTE: sampling using reparameterization trick; mu + eps * std
         if self.vae:
             dists = encoded.unbind(1)
             mu, logvar = dists
@@ -123,6 +130,7 @@ class TEMOS(LightningModule):
                 std = logvar.exp().pow(0.5)
                 eps = std.data.new(std.size()).normal_()
                 latent_vectors = mu + fact * eps * std
+        # NOTE: return a single latent vector, fully determined by the input
         else:
             dists = None
             (latent_vectors,) = encoded.unbind(1)

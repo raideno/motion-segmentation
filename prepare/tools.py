@@ -2,7 +2,6 @@ import os
 from glob import glob
 from tqdm import tqdm
 
-
 def loop_amass(
     base_folder,
     new_base_folder,
@@ -13,7 +12,11 @@ def loop_amass(
 ):
     match_str = f"**/*{ext}"
 
-    for motion_file in tqdm(glob(match_str, root_dir=base_folder, recursive=True)):
+    filespaths = glob(match_str, root_dir=base_folder, recursive=True)
+
+    print("[len(filespaths)]:", len(filespaths))
+
+    for motion_file in tqdm(filespaths):
         if exclude and exclude in motion_file:
             continue
 

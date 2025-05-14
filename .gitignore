@@ -3,7 +3,7 @@ datasets/annotations/humanml3d/token_embeddings/
 datasets/motions/
 
 models/
-    
+outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

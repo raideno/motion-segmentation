@@ -3,7 +3,6 @@ import logging
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
 
-
 logger = logging.getLogger(__name__)
 
 

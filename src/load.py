@@ -18,6 +18,9 @@ def extract_ckpt(run_dir, ckpt_name="last"):
     extracted_path = os.path.join(run_dir, f"{ckpt_name}_weights")
     os.makedirs(extracted_path, exist_ok=True)
 
+    print("[torch.cuda.is_available()]:", torch.cuda.is_available())
+    print("[torch.cuda.device_count()]:", torch.cuda.device_count())
+
     new_path_template = os.path.join(extracted_path, "{}.pt")
     ckpt_dict = torch.load(ckpt_path)
     state_dict = ckpt_dict["state_dict"]

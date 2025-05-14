@@ -3,5 +3,4 @@ defaults:
   - defaults
   - _self_
 
-# device: cuda:1
-device: cpu
+device: cuda:1
