@@ -13,7 +13,12 @@
 
 **3-** Once this done run the following command in order to start training:
 ```bash
-python train-segmentation.py +data=babel-segmentation +model=full-sequence-based-segmentation
+python train-segmentation.py +data=babel-segmentation +model=segmentation
+```
+
+**4-** Now in order to test / evaluate the trained model, run the following command:
+```bash
+
 ```
 
 ---

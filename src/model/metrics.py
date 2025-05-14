@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def print_latex_metrics(metrics):
     vals = [str(x).zfill(2) for x in [1, 2, 3, 5, 10]]
     t2m_keys = [f"t2m/R{i}" for i in vals] + ["t2m/MedR"]
@@ -129,3 +128,75 @@ def cols2metrics(cols, num_queries, rounding=2):
         for key in metrics:
             metrics[key] = round(metrics[key], rounding)
     return metrics
+
+import editdistance
+
+from sklearn.metrics import f1_score, accuracy_score
+
+def get_segments(labels):
+    """
+    Converts frame-wise labels to list of segments (label, start, end).
+    """
+    segments = []
+    last_label = labels[0]
+    start = 0
+    for i in range(1, len(labels)):
+        if labels[i] != last_label:
+            segments.append((last_label, start, i))
+            start = i
+            last_label = labels[i]
+    segments.append((last_label, start, len(labels)))
+    return segments
+
+def f_score(pred, gt, overlap=0.1):
+    """
+    Computes F1@{overlap} for a single sequence. It measures segment wise detection performance
+    with a temporal intersection over union (IoU) threshold.
+    
+    Match each predicted segment with a ground truth segment,
+    the match is accepted if their IoU is greater than the overlap threshold. Each ground truth
+    segment can only be matched once.
+    
+    True Positives = # of matched segments
+    Precision = TP / # of predicted segments
+    Recall = TP / # of ground truth segments
+    
+    F1 = 2 * Precision * Recall / (Precision + Recall)
+    
+    NOTE: Higher overlap threshold means stricter matching and thus minor misalignments
+    will fail the IoU check. Typically, as the overlap threshold increases, the F1 score decreases.
+    """
+    pred_segs = get_segments(pred)
+    gt_segs = get_segments(gt)
+
+    true_positives = 0
+    used = set()
+
+    for i, (plabel, pstart, pend) in enumerate(pred_segs):
+        for j, (glabel, gstart, gend) in enumerate(gt_segs):
+            if j in used or plabel != glabel:
+                continue
+
+            intersection = max(0, min(pend, gend) - max(pstart, gstart))
+            union = max(pend, gend) - min(pstart, gstart)
+            iou = intersection / union
+
+            if iou >= overlap:
+                true_positives += 1
+                used.add(j)
+                break
+
+    precision = true_positives / len(pred_segs) if pred_segs else 0
+    recall = true_positives / len(gt_segs) if gt_segs else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+    return f1
+
+def levenshtein(pred, gt):
+    """
+    Computes the Levenshtein distance between two sequences.
+    
+    Apply edit distance and gives the minimum number of insertions, deletions or substitutions
+    required to convert the predictions to the ground truth.
+    The score is then normalized to be between 0 and 1.
+    """
+    return 1 - editdistance.eval(pred, gt) / max(len(pred), len(gt))

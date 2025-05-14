@@ -3,4 +3,4 @@ from .temos import TEMOS  # noqa
 from .tmr import TMR  # noqa
 from .text_encoder import TextToEmb  # noqa
 
-from .fsb_segmentation import FullSequenceBasedSegmentationModel
+from .segmentation import SegmentationModel

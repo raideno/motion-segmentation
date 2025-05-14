@@ -1,7 +1,8 @@
-ckpt: last
-resume_dir: null
+device: cuda:1
 
-run_dir: outputs/${hydra:runtime.choices.model}_${hydra:runtime.choices.data}_${hydra:runtime.choices.data/motion_loader}
+run_dir: ???
+
+ckpt: last
 
 dataloader:
   _target_: torch.utils.data.DataLoader
@@ -11,9 +12,9 @@ dataloader:
 defaults:
   - data: babel-segmentation
   - model: segmentation
-  - trainer
+  # - trainer
   - defaults
   - _self_
 
 data:
-  preload: true
+  preload: false

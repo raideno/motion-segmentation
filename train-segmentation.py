@@ -1,5 +1,5 @@
 # NOTE: to start training
-# python train-segmentation.py +data=babel-segmentation +model=full-sequence-based-segmentation
+# python train-segmentation.py +data=babel-segmentation +model=segmentation
 
 import tqdm
 import hydra

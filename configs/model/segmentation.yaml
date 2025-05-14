@@ -1,4 +1,4 @@
-_target_: src.model.FullSequenceBasedSegmentationModel
+_target_: src.model.SegmentationModel
 
 motion_encoder:
   _target_: src.model.ACTORStyleEncoder
@@ -14,3 +14,6 @@ motion_encoder:
 # NOTE: based on the use motion_encoder that is specified in temos.yaml that this configuration extend
 hidden_dim: 256
 lr: 1e-4
+
+window_size: 30
+window_step: 1

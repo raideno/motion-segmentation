@@ -97,7 +97,7 @@ class TextMotionDataset(Dataset):
         annotation = annotations["annotations"][index]
 
         text = annotation["text"]
-        # text_x_dict = self.text_to_token_emb(text)
+        text_x_dict = self.text_to_token_emb(text)
         motion_x_dict = self.motion_loader(
             path=annotations["path"],
             start=annotation["start"],
@@ -107,8 +107,8 @@ class TextMotionDataset(Dataset):
 
         output = {
             "motion_x_dict": motion_x_dict,
-            # "text_x_dict": text_x_dict,
-            # "text": text,
+            "text_x_dict": text_x_dict,
+            "text": text,
             "text": "text",
             "keyid": keyid,
             "sent_emb": sent_emb,
@@ -119,36 +119,31 @@ class TextMotionDataset(Dataset):
         ann = self.annotations[keyid]
         annotations = ann["annotations"]
 
-        # Compute the full motion span
-        starts = [a["start"] for a in annotations]
-        ends = [a["end"] for a in annotations]
+        # NOTE: compute the motion span
+        starts = [annotation["start"] for annotation in annotations]
+        ends = [annotation["end"] for annotation in annotations]
         full_start = min(starts)
         full_end = max(ends)
 
-        # Load full motion covering all annotations
+        # NOTE: load the corresponding motion
         motion_x_dict = self.motion_loader(
             path=ann["path"],
             start=full_start,
             end=full_end,
         )
         
-        # Get the number of frames in loaded motion
-        # num_frames = motion_x_dict["motion"].shape[0]
         num_frames = motion_x_dict["x"].shape[0]
 
         fps = 20
 
-        # Build transition mask
         transition_mask = torch.zeros(num_frames, dtype=torch.float)
-        for a in annotations:
-            if "transition" in a["text"].lower():
-                # Convert times to indices relative to full_start
-                rel_start = max(int((a["start"] - full_start) * fps), 0)
-                rel_end = min(int((a["end"] - full_start) * fps), num_frames)
+        for annotation in annotations:
+            if "transition" in annotation["text"].lower():
+                rel_start = max(int((annotation["start"] - full_start) * fps), 0)
+                rel_end = min(int((annotation["end"] - full_start) * fps), num_frames)
                 transition_mask[rel_start:rel_end] = 1
 
-        # Optionally: aggregate sentence embeddings (or leave per-annotation)
-        texts = [a["text"] for a in annotations]
+        texts = [aannotation["text"] for aannotation in annotations]
         sent_embs = [self.text_to_sent_emb(text) for text in texts]
 
         output = {

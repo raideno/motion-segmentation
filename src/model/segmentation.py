@@ -9,14 +9,14 @@ from pytorch_lightning import LightningModule
 
 logger = logging.getLogger(__name__)
 
-class FullSequenceBasedSegmentationModel(LightningModule):
+class SegmentationModel(LightningModule):
     def __init__(
         self,
         motion_encoder: nn.Module,
-        window_size: int = 30,
-        window_step: int = 1,
-        hidden_dim: int = 256,
-        lr: float = 1e-4,
+        window_size: int,
+        window_step: int,
+        hidden_dim: int,
+        lr: float,
     ):
         super().__init__()
         self.motion_encoder = motion_encoder

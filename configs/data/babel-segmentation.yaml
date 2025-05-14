@@ -2,5 +2,4 @@ defaults:
   - _base
   - _self_
 
-preload: false
 segments: true
