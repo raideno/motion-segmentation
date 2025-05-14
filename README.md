@@ -1,3 +1,23 @@
+
+# Modified Version
+
+### Train Segmentation Model
+
+**1-** Install the python environment with the necessary modules using the [`requirements.txt`](/requirements.txt) file.
+
+**2-** Follow the instructions indicated in the following steps:
+- [Get the data](#get-the-data)
+- [Compute the features](#compute-the-features)
+- [Compute the text embeddings](#compute-the-text-embeddings)
+- [Compute statistics (already done for you)](#compute-statistics-already-done-for-you)
+
+**3-** Once this done run the following command in order to start training:
+```bash
+python train-segmentation.py +data=babel-segmentation +model=full-sequence-based-segmentation
+```
+
+---
+
 <div align="center">
 
 # TMR: Text-to-Motion Retrieval
