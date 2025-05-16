@@ -9,6 +9,8 @@ dataloader:
   batch_size: 8
   num_workers: 8
 
+examples: true
+
 defaults:
   - data: babel-segmentation
   - model: segmentation

@@ -131,7 +131,7 @@ def cols2metrics(cols, num_queries, rounding=2):
 
 import editdistance
 
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import balanced_accuracy_score, accuracy_score, precision_score, recall_score, f1_score
 
 def get_segments(labels):
     """

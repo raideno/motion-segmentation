@@ -1,0 +1,21 @@
+ckpt: last
+resume_dir: null
+
+dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: 8
+  num_workers: 8
+
+defaults:
+  - data: babel-classifier
+  - model: classifier
+  - trainer
+  - defaults
+  - _self_
+
+hidden_dim: ??
+
+run_dir: outputs/${hydra:runtime.choices.model}_${hydra:runtime.choices.data}_${hydra:runtime.choices.data/motion_loader}_${hidden_dim}
+
+data:
+  preload: false

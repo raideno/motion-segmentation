@@ -13,42 +13,42 @@ class AMASSMotionLoader:
         self.disable = disable
         self.nfeats = nfeats
 
-    # def __call__(self, path, start, end):
-    #     if self.disable:
-    #         return {"x": path, "length": int(self.fps * (end - start))}
-
-    #     begin = int(start * self.fps)
-    #     end = int(end * self.fps)
-    #     if path not in self.motions:
-    #         motion_path = os.path.join(self.base_dir, path + ".npy")
-    #         motion = np.load(motion_path)
-    #         motion = torch.from_numpy(motion).to(torch.float)
-    #         if self.normalizer is not None:
-    #             motion = self.normalizer(motion)
-    #         self.motions[path] = motion
-
-    #     motion = self.motions[path][begin:end]
-    #     x_dict = {"x": motion, "length": len(motion)}
-    #     return x_dict
-    
     def __call__(self, path, start, end):
         if self.disable:
             return {"x": path, "length": int(self.fps * (end - start))}
 
         begin = int(start * self.fps)
         end = int(end * self.fps)
-        motion_path = os.path.join(self.base_dir, path + ".npy")
-        motion = np.load(motion_path)
-        motion = torch.from_numpy(motion).to(torch.float)
-        
-        if self.normalizer is not None:
-            motion = self.normalizer(motion)
+        if path not in self.motions:
+            motion_path = os.path.join(self.base_dir, path + ".npy")
+            motion = np.load(motion_path)
+            motion = torch.from_numpy(motion).to(torch.float)
+            if self.normalizer is not None:
+                motion = self.normalizer(motion)
+            self.motions[path] = motion
 
-        motion = motion[begin:end]
-        
+        motion = self.motions[path][begin:end]
         x_dict = {"x": motion, "length": len(motion)}
-        
         return x_dict
+    
+    # def __call__(self, path, start, end):
+    #     if self.disable:
+    #         return {"x": path, "length": int(self.fps * (end - start))}
+
+    #     begin = int(start * self.fps)
+    #     end = int(end * self.fps)
+    #     motion_path = os.path.join(self.base_dir, path + ".npy")
+    #     motion = np.load(motion_path)
+    #     motion = torch.from_numpy(motion).to(torch.float)
+        
+    #     if self.normalizer is not None:
+    #         motion = self.normalizer(motion)
+
+    #     motion = motion[begin:end]
+        
+    #     x_dict = {"x": motion, "length": len(motion)}
+        
+    #     return x_dict
 
 # class AMASSMotionLoader:
 #     def __init__(

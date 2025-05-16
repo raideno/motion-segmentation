@@ -36,15 +36,16 @@ class TextMotionDataset(Dataset):
         max_seconds: float = 100.0,
         preload: bool = True,
         tiny: bool = False,
-        segments: bool = False,
+        mode: str = "classic",
+        text_only: bool = False
     ):
         if tiny:
             split = split + "_tiny"
 
-        self.collate_fn = collate_text_motion if not segments else segments_collate_text_motion
         self.split = split
         self.keyids = read_split(path, split)
-        self.segments = segments
+        self.mode = mode
+        self.load_keyid, self.collate_fn = self._get_mode_attributes(self.mode)
 
         self.text_to_sent_emb = text_to_sent_emb
         self.text_to_token_emb = text_to_token_emb
@@ -79,12 +80,24 @@ class TextMotionDataset(Dataset):
             
             self.keyids = [self.keyids[i] for i in range(len(self.keyids)) if int(self.keyids[i]) not in self.failed_indices]
 
+    def _get_mode_attributes(self, mode):
+        if mode == "classic":
+            return (self.load_keyid_classic, collate_text_motion)
+        elif mode == "segmentation":
+            return (self.load_keyid_segments, segments_collate_text_motion)
+        elif mode == "classifier":
+            return (self.load_keyid_classifier, collate_text_motion)
+            # return (self.load_keyid_classic, collate_text_motion)
+        else:
+            raise Exception("Invalid mode provided")
+
     def __len__(self):
         return len(self.keyids)
 
     def __getitem__(self, index):
         keyid = self.keyids[index]
-        return self.load_keyid_classic(keyid) if self.segments == False else self.load_keyid_segments(keyid)
+        
+        return self.load_keyid(keyid)
 
     def load_keyid_classic(self, keyid):
         annotations = self.annotations[keyid]
@@ -109,9 +122,27 @@ class TextMotionDataset(Dataset):
             "motion_x_dict": motion_x_dict,
             "text_x_dict": text_x_dict,
             "text": text,
-            "text": "text",
             "keyid": keyid,
             "sent_emb": sent_emb,
+        }
+        return output
+    
+    def load_keyid_classifier(self, keyid):
+        annotations = self.annotations[keyid]
+
+        # Take the first one for testing/validation
+        # Otherwise take a random one
+        index = 0
+        if self.is_training:
+            index = np.random.randint(len(annotations["annotations"]))
+        annotation = annotations["annotations"][index]
+
+        text = annotation["text"]
+
+        output = {
+            "text": text,
+            "keyid": keyid,
+            "length": annotation["end"] - annotation["start"],
         }
         return output
     

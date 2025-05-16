@@ -3,3 +3,4 @@ defaults:
   - _self_
 
 preload: false
+mode: classic

@@ -12,7 +12,7 @@ motion_encoder:
   activation: gelu
 
 # NOTE: based on the use motion_encoder that is specified in temos.yaml that this configuration extend
-hidden_dim: 256
+hidden_dim: 128
 lr: 1e-4
 
 window_size: 30

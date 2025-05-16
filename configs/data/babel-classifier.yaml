@@ -1,0 +1,6 @@
+defaults:
+  - _base
+  - _self_
+
+preload: false
+mode: classifier

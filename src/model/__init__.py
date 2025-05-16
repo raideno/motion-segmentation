@@ -4,3 +4,4 @@ from .tmr import TMR  # noqa
 from .text_encoder import TextToEmb  # noqa
 
 from .segmentation import SegmentationModel
+from .classifier import ClassifierModel

@@ -25,6 +25,7 @@ def save_metric(path, metrics):
 def evaluate_segmentation(newcfg: DictConfig) -> None:
     device = newcfg.device
     run_dir = newcfg.run_dir
+    examples = newcfg.examples
     ckpt_name = newcfg.ckpt
 
     save_dir = os.path.join(run_dir, "segmentation-evaluation")
@@ -46,9 +47,31 @@ def evaluate_segmentation(newcfg: DictConfig) -> None:
         shuffle=False,
     )
 
-    # --- --- --- ---
-    
     model.eval()
+
+    # --- --- --- ---
+
+    # TODO: complete
+    if examples:
+        from src.model.metrics import get_segments
+        
+        batch = next(iter(dataloader))
+        
+        motion_x_dict = batch["motion_x_dict"]
+        targets = batch["transition_mask"].to(device)
+        
+        motion_x_dict["x"] = motion_x_dict["x"].to(device)
+        motion_x_dict["mask"] = motion_x_dict["mask"].to(device)
+                
+        x = motion_x_dict
+        y = targets
+            
+        outputs = model(x, None)
+        preds = (torch.sigmoid(outputs) > 0.5).long().cpu().numpy()
+        labels = y.squeeze(1).cpu().numpy()
+        
+        
+    # --- --- --- ---
     
     all_preds, all_labels = [], []
 
@@ -64,7 +87,7 @@ def evaluate_segmentation(newcfg: DictConfig) -> None:
             x = motion_x_dict
             y = targets
             
-            outputs = model(x)
+            outputs = model(x, index)
             preds = (torch.sigmoid(outputs) > 0.5).long().cpu().numpy()
             labels = y.squeeze(1).cpu().numpy()
             
@@ -75,7 +98,7 @@ def evaluate_segmentation(newcfg: DictConfig) -> None:
     acc_list = []
     edit_list = []
     
-    f1_thresholds = np.arange(0.1, 1.0, 0.1)
+    f1_thresholds = np.arange(0.1, 1.1, 0.1)
     f1_scores = []
     
     from src.model.metrics import accuracy_score, levenshtein, f_score

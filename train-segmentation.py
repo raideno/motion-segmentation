@@ -35,6 +35,8 @@ def train_segmentation(cfg: DictConfig):
         logger.info("Training script")
         logger.info(f"The config can be found here: \n{config_path}")
 
+    logger.info(f"[ckpt]: {ckpt}")
+
     lightning.seed_everything(cfg.seed)
 
     logger.info("[data]: loading the dataloaders")
@@ -73,8 +75,6 @@ def train_segmentation(cfg: DictConfig):
 
     trainer = instantiate(cfg.trainer)
     
-    logger.info(f"[ckpt]: {ckpt}")
-
     logger.info("[training]: started")    
     trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=ckpt)
 
