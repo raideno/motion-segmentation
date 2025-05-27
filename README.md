@@ -1,5 +1,41 @@
+# Modified Version 2
 
-# Modified Version
+Start / End motion segmentation model; given a window, the model will predict whether it is a transition or not and if it is a transition it'll also predict its start and end positions.
+
+**0-** Make sure you prepared the [windowed-babel-dataset](https://github.com/raideno/babel-dataset).
+
+**1-** Setup python environment.
+```bash
+python -m venv .venv
+pip install -r requirements.txt
+```
+
+**2-** Train the model.
+```bash
+python train-start-end-segmentation.py \
+  ++data.dir=/path/to/babel-windowed-with-statistics \
+  # NOTE: chose the window-size you generated
+  ++data.window_size=20 \
+  \
+  ++data.balanced=true \
+  # NOTE: will pick at most 10000 samples
+  ++data.tiny=10000 \
+  ++data.normalize=true \
+  \
+  model/classifier=mlp \
+  # NOTE: motion_encoder can be set to tmr
+  model/motion_encoder=stgcn \
+  ++model.motion_encoder.pretrained=true
+```
+
+**3-** Evaluate the model.
+```bash
+python train-start-end-segmentation.py run_dir=<RUN_DIR>
+```
+
+--- --- --- ---
+
+# Modified Version 1
 
 ### Train Segmentation Model
 
@@ -21,7 +57,7 @@ python train-segmentation.py +data=babel-segmentation +model=segmentation
 
 ```
 
----
+--- --- --- ---
 
 <div align="center">
 

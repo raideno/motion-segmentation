@@ -86,8 +86,10 @@ class TextMotionDataset(Dataset):
         elif mode == "segmentation":
             return (self.load_keyid_segments, segments_collate_text_motion)
         elif mode == "classifier":
-            return (self.load_keyid_classifier, collate_text_motion)
-            # return (self.load_keyid_classic, collate_text_motion)
+            # NOTE: default
+            # return (self.load_keyid_classifier, collate_text_motion)
+            # NOTE: for classifier evaluation
+            return (self.load_keyid_classic, collate_text_motion)
         else:
             raise Exception("Invalid mode provided")
 

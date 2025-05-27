@@ -5,3 +5,4 @@ from .text_encoder import TextToEmb  # noqa
 
 from .segmentation import SegmentationModel
 from .classifier import ClassifierModel
+from .start_end_segmentation import StartEndSegmentationModel

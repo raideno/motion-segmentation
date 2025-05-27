@@ -1,0 +1,10 @@
+_target_: src.model.StartEndSegmentationModel
+
+lr: 1e-4
+
+defaults:
+  - motion_encoder: stgcn
+  - classifier: mlp
+
+classifier: ???
+motion_encoder: ???

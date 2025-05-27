@@ -1,0 +1,7 @@
+_target_: src.data.windowed_dataset.WindowedDataset
+
+dir: ???
+window_size: ???
+
+preload: true
+normalize: false

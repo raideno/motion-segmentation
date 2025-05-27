@@ -1,4 +1,0 @@
-run_dir: babel
-seed: 1234
-logger_level: INFO
-ckpt: last

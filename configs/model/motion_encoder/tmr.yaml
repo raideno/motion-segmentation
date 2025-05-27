@@ -1,0 +1,4 @@
+_target_: src.model.encoders.tmr.TMR
+
+latent_dim: 256
+pretrained: false

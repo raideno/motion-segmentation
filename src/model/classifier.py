@@ -13,6 +13,9 @@ from pytorch_lightning import LightningModule
 logger = logging.getLogger(__name__)
 
 class ClassifierModel(LightningModule):
+    """
+    This model receives a batch of motion sequences and classifies each sequence as either a transition or an action.
+    """
     def __init__(
         self,
         motion_encoder: nn.Module,
@@ -35,7 +38,8 @@ class ClassifierModel(LightningModule):
             param.requires_grad = False
 
         self.classifier = nn.Sequential(
-            nn.Linear(self.motion_encoder.latent_dim, hidden_dim),
+            # nn.Linear(self.motion_encoder.latent_dim, hidden_dim),
+            nn.Linear(256, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, 1),
         )
@@ -72,7 +76,7 @@ class ClassifierModel(LightningModule):
         return latent
                     
     def forward(self, batch: Dict, batch_index) -> Tensor:
-        batch_size = batch["motion_x_dict"]["x"].shape[0]
+        batch_size = len(batch["keyid"])
         
         latent = self.get_latent(batch, batch_index)
         
@@ -118,7 +122,7 @@ class ClassifierModel(LightningModule):
     def training_step(self, batch: Dict, batch_idx=None) -> Tensor:
         logits, targets, loss = self.step(batch, batch_idx)
         
-        batch_size = batch["motion_x_dict"]["x"].shape[0]
+        batch_size = len(batch["keyid"])
         
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
         
@@ -127,9 +131,9 @@ class ClassifierModel(LightningModule):
     def validation_step(self, batch: Dict, batch_idx=None) -> Tensor:
         logits, targets, loss = self.step(batch, batch_idx)
         
-        batch_size = batch["motion_x_dict"]["x"].shape[0]
+        batch_size = len(batch["keyid"])
         
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
+        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
         
         return loss
     

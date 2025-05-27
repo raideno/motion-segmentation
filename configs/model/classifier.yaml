@@ -11,6 +11,6 @@ motion_encoder:
   dropout: 0.1
   activation: gelu
 
-hidden_dim: ??
+hidden_dim: 128
 lr: 1e-4
 cache: true

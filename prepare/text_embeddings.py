@@ -4,7 +4,6 @@ from omegaconf import DictConfig
 
 logger = logging.getLogger(__name__)
 
-
 @hydra.main(config_path="../configs", config_name="text_embeddings", version_base="1.3")
 def text_embeddings(cfg: DictConfig):
     device = cfg.device

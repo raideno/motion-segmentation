@@ -1,7 +1,11 @@
+datasets/*
+datasets/
+datasets
 datasets/annotations/humanml3d/sent_embeddings/
 datasets/annotations/humanml3d/token_embeddings/
 datasets/motions/
 
+multirun/
 models/
 outputs/
 

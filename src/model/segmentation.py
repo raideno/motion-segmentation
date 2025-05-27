@@ -10,6 +10,9 @@ from pytorch_lightning import LightningModule
 logger = logging.getLogger(__name__)
 
 class SegmentationModel(LightningModule):
+    """
+    This model receives a batch of motion sequences and classifies each frame of each motion as either a transition or an action.
+    """
     def __init__(
         self,
         motion_encoder: nn.Module,
@@ -157,7 +160,7 @@ class SegmentationModel(LightningModule):
     def validation_step(self, batch: Dict, batch_idx: int) -> Tensor:
         logits, targets, loss = self.step(batch, batch_idx)
         
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         
         return loss
 

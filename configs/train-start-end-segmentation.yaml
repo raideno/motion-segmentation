@@ -1,0 +1,35 @@
+ckpt: last
+resume_dir: null
+
+run_dir: outputs/${hydra:runtime.choices.model}_${hydra:runtime.choices.model/motion_encoder}_${model.motion_encoder.pretrained}_${hydra:runtime.choices.model/classifier}_${data.window_size}
+# run_dir: outputs/${hydra:runtime.choices.model}_${hydra:runtime.choices.model/motion_encoder}_${model.motion_encoder.pretrained}_${hydra:runtime.choices.model/classifier}_${data.window_size}_${now:%Y-%m-%d_%H-%M-%S}
+
+# python train-start-end-segmentation.py \
+#   ++data.dir=/home/nadir/disk/datasets/babel-windowed-with-statistics \
+#   ++data.window_size=20 \
+#   \
+#   ++data.balanced=true \
+#   ++data.tiny=10000 \
+#   ++data.normalize=true \
+#   \
+#   model/classifier=mlp \
+#   model/motion_encoder=stgcn \
+#   ++model.motion_encoder.pretrained=true
+#   \
+#   resume_dir=...
+
+dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: 32
+  num_workers: 8
+
+defaults:
+  - data: babel-windowed
+  - model: start-end-segmentation
+  - trainer
+  - defaults
+  - _self_
+  - override hydra/launcher: basic
+
+data:
+  preload: false

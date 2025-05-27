@@ -1,0 +1,4 @@
+_target_: src.model.encoders.STGCNEncoder
+
+latent_dim: 256
+pretrained: false

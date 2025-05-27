@@ -2,7 +2,7 @@ device: cuda:1
 
 run_dir: ???
 
-ckpt: last
+ckpt: best
 
 dataloader:
   _target_: torch.utils.data.DataLoader
