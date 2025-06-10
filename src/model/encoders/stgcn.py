@@ -1,6 +1,6 @@
 import torch
 
-from .stgcn_helpers import STGCN
+from .helpers.stgcn_helpers import STGCN
 
 class STGCNEncoder(torch.nn.Module):
     def __init__(
@@ -25,7 +25,7 @@ class STGCNEncoder(torch.nn.Module):
     def forward(self, batch):
         preprocessed_motion = batch["transformed_motion"]
         motion = batch["motion"]
-        transition_mask = batch["transition_mask"]
+        transition_mask = batch["annotation"]
         
         # (B, WINDOW_SIZE, 22, 3)
         x = motion

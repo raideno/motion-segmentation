@@ -3,8 +3,6 @@ import logging
 
 from src.model import ACTORStyleEncoder
 
-from .stgcn_helpers import STGCN
-
 logger = logging.getLogger(__name__)
 
 class TMR(torch.nn.Module):
@@ -40,10 +38,10 @@ class TMR(torch.nn.Module):
         # preprocessed_motion, motion, transition_mask = batch
         preprocessed_motion = batch["transformed_motion"]
         motion = batch["motion"]
-        transition_mask = batch["transition_mask"]
+        transition_mask = batch["annotation"]
         
         encoded = self.model({
-            "x": preprocessed_motion,
+            "x": preprocessed_motion.float(),
             # Shape: [batch_size, time]
             "mask": torch.ones(preprocessed_motion.shape[:2], dtype=torch.bool, device=preprocessed_motion.device)
         })

@@ -4,3 +4,4 @@ defaults:
 
 run_dir: ???
 ckpt: last
+mode: best

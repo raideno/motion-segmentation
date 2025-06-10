@@ -58,7 +58,7 @@ def evaluate_segmentation(newcfg: DictConfig) -> None:
         batch = next(iter(dataloader))
         
         motion_x_dict = batch["motion_x_dict"]
-        targets = batch["transition_mask"].to(device)
+        targets = batch["annotation"].to(device)
         
         motion_x_dict["x"] = motion_x_dict["x"].to(device)
         motion_x_dict["mask"] = motion_x_dict["mask"].to(device)
@@ -79,7 +79,7 @@ def evaluate_segmentation(newcfg: DictConfig) -> None:
         for index, batch in tqdm.tqdm(iterable=enumerate(dataloader), total=len(dataloader), desc="[evaluate-segmentation]"):
             motion_x_dict = batch["motion_x_dict"]
             # texts = batch["text"]
-            targets = batch["transition_mask"].to(device)
+            targets = batch["annotation"].to(device)
             
             motion_x_dict["x"] = motion_x_dict["x"].to(device)
             motion_x_dict["mask"] = motion_x_dict["mask"].to(device)

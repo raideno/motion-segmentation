@@ -1,0 +1,1 @@
+_target_: src.model.label_extractors.transition_based_start_end_with_majority.TransitionBasedStartEndWithMajority

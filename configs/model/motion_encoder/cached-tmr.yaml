@@ -1,3 +1,0 @@
-_target_: src.model.encoders.CachedTMR
-
-latent_dim: 256

@@ -1,5 +1,12 @@
-# NOTE: to start training
-# python train-segmentation.py +data=babel-segmentation +model=segmentation
+# HYDRA_FULL_ERROR=1 python train-start-end-segmentation.py --multirun \
+#   ++data.window_size=10,15,20,25,30 \
+#   ++model.motion_encoder.pretrained=false,true \
+#   ++data.dir=/home/nadir/windowed-babel/ \
+#   ++data.balanced=true \
+#   ++data.normalize=true \
+#   model/label_extractor=majority-based-start-end-with-majority,transition-based-start-end-with-majority,transition-based-start-end-without-majority \
+#   model/motion_encoder=tmr \
+#   model/classifier=mlp
 
 import tqdm
 import hydra
@@ -22,7 +29,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='tensorflow')
 logger = logging.getLogger(__name__)
 
 @hydra.main(config_path="configs", config_name="train-start-end-segmentation", version_base="1.3")
-def train_segmentation(cfg: DictConfig):
+def train_start_end_segmentation(cfg: DictConfig):
     ckpt = None
     if cfg.resume_dir is not None:
         assert cfg.ckpt is not None
@@ -46,9 +53,7 @@ def train_segmentation(cfg: DictConfig):
 
     logger.info("[data]: loading the dataloaders")
     
-    # train_dataset = instantiate(cfg.data, tiny=True, split="train")
     train_dataset = instantiate(cfg.data, split="train")
-    # val_dataset = instantiate(cfg.data, tiny=True, split="val")
     val_dataset = instantiate(cfg.data, split="val")
     
     train_dataloader = instantiate(
@@ -65,12 +70,6 @@ def train_segmentation(cfg: DictConfig):
         shuffle=False,
     )
     
-    # for sample in tqdm.tqdm(train_dataloader, desc="[train-dataloader-looping]"):
-    #     continue
-    
-    # for sample in tqdm.tqdm(val_dataloader, desc="[val-dataloader-looping]"):
-    #     continue
-    
     logger.info("[model]: loading the model")
     model = instantiate(cfg.model)
     
@@ -83,8 +82,8 @@ def train_segmentation(cfg: DictConfig):
 
 if __name__ == "__main__":
     # NOTE: issue was that the dataset was the one moving tensors to gpu and thus CUDA was involved before dataloader
-    # i modified it and set ti to move to CPU and dataloader is the one responsible of moving to GPU, more specifically pytorch lightinig
+    # i modified it and set it to move to CPU and dataloader is the one responsible of moving to GPU, more specifically pytorch lightinig
     # import torch.multiprocessing as mp
     # mp.set_start_method('spawn', force=True)
     
-    train_segmentation()
+    train_start_end_segmentation()

@@ -1,0 +1,22 @@
+device: cuda:1
+
+run_dir: ???
+
+ckpt: best
+
+dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: 8
+  num_workers: 8
+
+examples: true
+
+defaults:
+  - data: babel-windowed
+  - model: start-end-segmentation
+  # - trainer
+  - defaults
+  - _self_
+
+data:
+  preload: false

@@ -1,0 +1,10 @@
+run_dirs: ???
+window_step: ???
+
+vote_manager: ???
+# score-based or class-based
+
+device: cuda:1
+qualitative_run_index: 1
+num_qualitative_examples: 10
+ckpt: best

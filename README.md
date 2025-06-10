@@ -1,3 +1,9 @@
+# Modified Version 3
+
+First 
+
+---
+
 # Modified Version 2
 
 Start / End motion segmentation model; given a window, the model will predict whether it is a transition or not and if it is a transition it'll also predict its start and end positions.

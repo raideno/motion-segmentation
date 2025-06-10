@@ -19,10 +19,12 @@ class WindowedDataset(Dataset):
         split="all",
         balanced=False,
         normalize=False,
+        for_validation=False
     ):
         self.window_size = window_size
         self.window_step = window_step
         self.dir = os.path.join(dir, f"{self.window_size}-{self.window_step}")
+        
         self.tiny = tiny
         self.split = split
         self.preload = preload
@@ -32,13 +34,22 @@ class WindowedDataset(Dataset):
         self.motion_mean = None
         self.motion_std = None
         
-        self.filesnames = glob.glob(f"**/*.*.pt", root_dir=self.dir, recursive=True)
+        print("[slef.dir]:", self.dir)
+        
+        if not for_validation:
+            # self.filesnames = glob.glob(f"**/*.*.pt", root_dir=self.dir, recursive=True)
+            # f"{global_index}.{sample['sid']}.majorityClass={majorityClass}.hasTransition={hasTransition}.pt"
+            self.filesnames = glob.glob(f"**/*.*.*.*.pt", root_dir=self.dir, recursive=True)
+        else:
+            print("here")
+            self.filesnames = list(filter(lambda filename: filename.split(".")[0].isdigit(), glob.glob(f"**/*.pt", root_dir=self.dir, recursive=True)))
+        
         self.filesnames = sorted(self.filesnames, key=lambda x: int(os.path.basename(x).split(".")[0]))
             
         self._apply_split()
             
         if self.balanced:
-            self.filesnames = self._balance_dataset()
+            self.filesnames, self.class_0_files, self.class_1_files = self._balance_dataset()
         
         if self.tiny > 0:
             self.tiny = min(len(self.filesnames), self.tiny)
@@ -80,25 +91,25 @@ class WindowedDataset(Dataset):
             raise ValueError(f"Unknown split '{self.split}'. Choose from 'all', 'train', 'val', or 'test'.")
             
     def _balance_dataset(self):
-        self.class_0_files = []
-        self.class_1_files = []
+        class_0_files: list[str] = []
+        class_1_files: list[str] = []
         
         for filename in self.filesnames:
-            if ".False." in filename:
-                self.class_0_files.append(filename)
-            elif ".True." in filename:
-                self.class_1_files.append(filename)
+            if ".hasTransition=False." in filename:
+                class_0_files.append(filename)
+            elif ".hasTransition=True." in filename:
+                class_1_files.append(filename)
         
-        min_count = min(len(self.class_0_files), len(self.class_1_files))
+        min_count = min(len(class_0_files), len(class_1_files))
         
-        balanced_class_0 = random.sample(self.class_0_files, min_count)
-        balanced_class_1 = random.sample(self.class_1_files, min_count)
+        balanced_class_0 = random.sample(class_0_files, min_count)
+        balanced_class_1 = random.sample(class_1_files, min_count)
         
         self.filesnames = balanced_class_0 + balanced_class_1
         
         random.shuffle(self.filesnames)
         
-        return self.filesnames
+        return self.filesnames, class_0_files, class_1_files
         
     def __len__(self):
         return len(self.filesnames)
@@ -110,9 +121,9 @@ class WindowedDataset(Dataset):
         
         data = torch.load(path, weights_only=False, map_location="cpu")
         
-        preprocessed_motion = data["transformed_motion"]
+        # preprocessed_motion = data["transformed_motion"]
         motion = data["motion"]
-        transition_mask = data["transition_mask"]
+        # annotation = data["annotation"]
         
         if self.normalize and self.motion_mean is not None and self.motion_std is not None:
             if not isinstance(motion, torch.Tensor):

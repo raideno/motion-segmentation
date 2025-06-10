@@ -54,19 +54,17 @@ def evaluate_classifier_segmentation(newcfg: DictConfig) -> None:
 
     model = model.eval()
 
-    # --- --- --- ---
-
     all_preds, all_labels = [], []
 
     with torch.no_grad():
         for index, batch in tqdm.tqdm(iterable=enumerate(dataloader), total=len(dataloader), desc="[evaluate-segmentation]"):
-            batch["transition_mask"] = batch["transition_mask"].to(device)
+            batch["annotation"] = batch["annotation"].to(device)
             
             batch["motion_x_dict"]["x"] = batch["motion_x_dict"]["x"].to(device)
             batch["motion_x_dict"]["mask"] = batch["motion_x_dict"]["mask"].to(device)
             
             x = batch["motion_x_dict"]
-            y = batch["transition_mask"]
+            y = batch["annotation"]
             
             outputs = model.segment_sequence(
                 motion_x_dict=x,
