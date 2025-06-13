@@ -13,11 +13,11 @@ label_extractors=(
 )
 
 window_sizes=(
-  "10"
-  "15"
+  # "10"
+  # "15"
   "20"
-  "25"
-  "30"
+  # "25"
+  # "30"
 )
 
 # NOTE: current tmux session

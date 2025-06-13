@@ -1,0 +1,4 @@
+_target_: src.model.window_positional_encoders.integer_based.IntegerBasedWindowPositionalEncoder
+
+max_len: 512
+d_model: 256

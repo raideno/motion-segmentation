@@ -1,3 +1,6 @@
+# HYDRA_FULL_ERROR=1 python extract.py --multirun \
+#       run_dir=
+
 import logging
 import hydra
 

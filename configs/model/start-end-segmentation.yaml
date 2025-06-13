@@ -6,8 +6,8 @@ defaults:
   - motion_encoder: stgcn
   - classifier: mlp
   - label_extractor: transition-based-start-end-without-majority
+  - window_positional_encoder: null
 
 classifier: ???
 motion_encoder: ???
 label_extractor: ???
-vote_manager: ???

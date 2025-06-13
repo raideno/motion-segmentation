@@ -1,12 +1,13 @@
-# HYDRA_FULL_ERROR=1 python train-start-end-segmentation.py --multirun \
-#   ++data.window_size=10,15,20,25,30 \
-#   ++model.motion_encoder.pretrained=false,true \
-#   ++data.dir=/home/nadir/windowed-babel/ \
+# HYDRA_FULL_ERROR=1 python train-start-end-segmentation.py \
+#   ++data.window_size=20 \
+#   ++model.motion_encoder.pretrained=false \
+#   ++data.dir=/home/nadir/windowed-babel-with-poses/ \
 #   ++data.balanced=true \
 #   ++data.normalize=true \
-#   model/label_extractor=majority-based-start-end-with-majority,transition-based-start-end-with-majority,transition-based-start-end-without-majority \
+#   model/label_extractor=majority-based-start-end-with-majority \
 #   model/motion_encoder=tmr \
-#   model/classifier=mlp
+#   model/classifier=mlp \
+#   model/window_positional_encoder=null
 
 import tqdm
 import hydra

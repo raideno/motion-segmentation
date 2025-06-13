@@ -54,7 +54,7 @@ class StartEndSegmentationModel(LightningModule):
         latent = self.motion_encoder(batch)
         
         if self.window_positional_encoder is not None and window_position is not None and sequence_size is not None:
-            positional_embedding = self.window_positional_encoder(preprocessed_motion, sequence_size)
+            positional_embedding = self.window_positional_encoder(batch)
             latent = positional_embedding + positional_embedding
         
         class_logits, start_logits, end_logits = self.classifier(latent)
@@ -122,7 +122,7 @@ class StartEndSegmentationModel(LightningModule):
         
         return loss
 
-    def training_step(self, *args, **kwargs) :
+    def validation_step(self, *args, **kwargs) :
         batch = args[0]
         batch_idx = kwargs.get("batch_idx", 0)
         
