@@ -22,10 +22,41 @@ from src.load import load_model_from_cfg
 
 logger = logging.getLogger(__name__)
 
+idx_to_labels = {
+    # -1: ["transition"],
+    0: ['walk'],
+    1: ['hit', 'punch'],
+    2: ['kick'],
+    3: ['run', 'jog'],
+    4: ['jump', 'hop', 'leap'],
+    5: ['throw'],
+    6: ['catch'],
+    7: ['step'],
+    # NOTE: large diversity expected
+    8: ['greet'],
+    9: ['dance'],
+    # NOTE: large diversity expected
+    10: ['stretch', 'yoga', 'exercise / training'],
+    # NOTE: is this distinct enough from take / pick something up? Yeah, I think so.
+    11: ['turn', 'spin'],
+    12: ['bend'],
+    # NOTE: large diversity expected
+    13: ['stand'],
+    14: ['sit'],
+    15: ['kneel'],
+    16: ['place something'],
+    17: ['grasp object'],
+    18: ['take/pick something up', 'lift something'],
+    19: ['scratch', 'touching face', 'touching body parts'],
+}
+idx_to_labels = { key: ",".join(value) for key, value in idx_to_labels.items() }
+labels_to_idx = { v: k for k, v in idx_to_labels.items() }
+idx_to_labels = labels_to_idx
+
 @hydra.main(version_base=None, config_path="configs", config_name="evaluate-start-end-segmentation-classifier")
 def evaluate_start_end_segmentation_classifier(newcfg: DictConfig) -> None:
     import torch.nn.functional as F
-    from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+    from sklearn.metrics import accuracy_score, balanced_accuracy_score, matthews_corrcoef, classification_report, confusion_matrix
 
     device = newcfg.device
     run_dir = newcfg.run_dir
@@ -37,8 +68,17 @@ def evaluate_start_end_segmentation_classifier(newcfg: DictConfig) -> None:
 
     cfg = read_config(run_dir)
     pl.seed_everything(cfg.seed)
+    
+    print("[encoder]:", cfg.model.motion_encoder)
+    print("[classifier]:", cfg.model.classifier)
 
-    model = load_model_from_cfg(cfg, ckpt_name, eval_mode=True, device=device)
+    model = load_model_from_cfg(
+        cfg,
+        ckpt_name,
+        eval_mode=True,
+        device=device,
+        pretrained=True
+    )
     model.eval()
 
     dataset = instantiate(
@@ -52,20 +92,31 @@ def evaluate_start_end_segmentation_classifier(newcfg: DictConfig) -> None:
         shuffle=False
     )
 
-    all_preds, all_labels = [], []
+    all_predictions, all_groundtruths = [], []
     class_losses, start_losses, end_losses = [], [], []
 
     with torch.no_grad():
         for batch in tqdm.tqdm(dataloader, desc="[evaluate-segmentation]"):
-            for key in ["transformed_motion", "motion", "annotation"]:
-                batch[key] = batch[key].to(device)
+            batch["motion"] = batch["motion"].to(device)
+            batch["transformed_motion"] = batch["transformed_motion"].to(device)
+            batch["annotation"] = batch["annotation"].to(device)
                 
             label = model.label_extractor.extract(batch["annotation"])
-            class_logits, start_logits, end_logits = model(batch, None)
             
-            class_logits = class_logits.view(-1)
+            class_logits, start_logits, end_logits = model.forward(batch, None)
+            
+            logger.debug("[batch.annotation]:", batch["annotation"].shape)
+            logger.debug("[label.shape]:", label.shape)
+            
             start_logits = start_logits.view(-1)
             end_logits = end_logits.view(-1)
+            
+            # NOTE: [batch, #classes]
+            logger.debug("[class_logits.shape]:", class_logits.shape)
+            # NOTE: [batch]
+            logger.debug("[start_logits.shape]:", start_logits.shape)
+            # NOTE: [batch]
+            logger.debug("[end_logits.shape]:", end_logits.shape)
             
             loss, (class_loss, start_loss, end_loss) = model.compute_loss(class_logits, start_logits, end_logits, label)
 
@@ -73,42 +124,68 @@ def evaluate_start_end_segmentation_classifier(newcfg: DictConfig) -> None:
             start_losses.append(start_loss.item())
             end_losses.append(end_loss.item())
 
-            # NOTE: classification
-            class_preds = (torch.sigmoid(class_logits.view(-1)) > 0.5).long()
-            all_preds.extend(class_preds.cpu().tolist())
-            all_labels.extend(label[:, 0].long().cpu().tolist())
+            # NOTE: [batch]
+            prediction = class_logits.argmax(dim=-1)
+            groundtruth = label[:, 0]
+            
+            # NOTE: we do this to not compute the loss related to negative classes (not selected ones)
+            valid_mask = label[:, 0] >= 0
+            
+            all_predictions.extend(prediction[valid_mask].long().cpu().tolist())
+            all_groundtruths.extend(groundtruth[valid_mask].long().cpu().tolist())
 
-    accuracy = accuracy_score(all_labels, all_preds)
-    class_report = classification_report(all_labels, all_preds, target_names=["no_transition", "transition"], output_dict=True)
-    confusion = confusion_matrix(all_labels, all_preds)
-    confusion_dataframe = pd.DataFrame(confusion, index=["no_transition", "transition"], columns=["pred_no_transition", "pred_transition"])
+    accuracy = accuracy_score(all_groundtruths, all_predictions)
+    class_report = classification_report(all_groundtruths, all_predictions, target_names=idx_to_labels, output_dict=True)
+    confusion = confusion_matrix(all_groundtruths, all_predictions)
+    balanced_accuracy = balanced_accuracy_score(all_groundtruths, all_predictions)
+    mcc = matthews_corrcoef(all_groundtruths, all_predictions)
+    
+    confusion_dataframe = pd.DataFrame(confusion, index=idx_to_labels)
 
+    print(f"[balanced accuracy]: {balanced_accuracy * 100:.2f}%")
+    print(f"[mcc]: {mcc}")
     print(f"[overall accuracy]: {accuracy * 100:.2f}%")
-    # for cls, metrics in class_report.items():
-    #     if cls in ["0", "1"]:
-    #         print(f"Class {cls} accuracy: {metrics['recall'] * 100:.2f}%")
-    print("\n[per class accuracy]:")
+    print(f"--- --- ---")
+    print("[per class accuracy]:")
     for cls, metrics in class_report.items():
-        if cls in ["no_transition", "transition"]:
-            print(f"Class '{cls}' accuracy: {metrics['recall'] * 100:.2f}%")
+        if cls in idx_to_labels:
+            print(f"\t[class-{cls}]: {metrics['recall'] * 100:.2f}%")
 
-    print()
+    print(f"--- --- ---")
+    
     print("[class-loss]:", sum(class_losses) / len(class_losses) if class_losses else "No classification loss computed")
     print("[start-loss]:", sum(start_losses) / len(start_losses) if start_losses else "No valid start targets")
     print("[end-loss]:", sum(end_losses) / len(end_losses) if end_losses else "No valid end targets")
 
-    print("\n[confusion matrix]:")
+    print(f"--- --- ---")
+    
+    print("[confusion matrix]:")
     print(confusion_dataframe)
+    
+    print(f"--- --- ---")
 
-    print("\n[full classification report]:")
-    print(classification_report(all_labels, all_preds, target_names=["no_transition", "transition"]))
+    print("[full classification report]:")
+    print(classification_report(all_groundtruths, all_predictions, target_names=idx_to_labels))
     
     evaluation_metrics = {
         "overall_accuracy": accuracy,
+        "balanced_accuracy": balanced_accuracy,
+        "mcc": mcc,
         "per_class_accuracy": {
-            "no_transition": class_report["no_transition"]["recall"],
-            "transition": class_report["transition"]["recall"],
+            cls: metrics['recall'] for cls, metrics in class_report.items() if cls in idx_to_labels
         },
+        "per_class_f1_score": {
+            cls: metrics['f1-score'] for cls, metrics in class_report.items() if cls in idx_to_labels
+        },
+        "per_class_precision": {
+            cls: metrics['precision'] for cls, metrics in class_report.items() if cls in idx_to_labels
+        },
+        "per_class_support": {
+            cls: metrics['support'] for cls, metrics in class_report.items() if cls in idx_to_labels
+        },
+        "per_class_labels": idx_to_labels,
+        "num_samples": len(all_groundtruths),
+        "num_classes": len(idx_to_labels),
         "losses": {
             "classification_loss": sum(class_losses) / len(class_losses) if class_losses else None,
             "start_loss": sum(start_losses) / len(start_losses) if start_losses else None,
@@ -123,7 +200,9 @@ def evaluate_start_end_segmentation_classifier(newcfg: DictConfig) -> None:
     save_metric(metrics_path, evaluation_metrics, format="yaml")
     save_metric(metrics_path, evaluation_metrics, format="json")
     
-    print(f"\n[metrics-saved-to]: {metrics_path}")
+    print(f"--- --- ---")
+    
+    print(f"[metrics-saved-to]: {metrics_path}")
 
 if __name__ == "__main__":
     evaluate_start_end_segmentation_classifier()

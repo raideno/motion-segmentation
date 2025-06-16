@@ -54,9 +54,35 @@ def load_segmentation_metrics(
         logger.warning(f"Error loading metrics from {output_path}: {e}")
     return None
 
+# def parse_model_info_from_path(output_path: str):
+#     # start-end-segmentation/////tmr/////majority-based-start-end-with-majority/////False/////mlp/////10
+#     # _, encoder_type, label_extractor, pretrained, classifier, window_size = os.path.basename(output_path).split('_')
+#     _, encoder_type, _, label_extractor, pretrained, classifier, window_size = os.path.basename(output_path).split('_')
+    
+#     return {
+#         "name": f"{encoder_type} with {label_extractor}",
+#         "window_size": int(window_size),
+#         "classifier": classifier,
+#         "pretrained": pretrained,
+#         "label_extractor": label_extractor,
+#         "encoder_type": encoder_type,
+#     }
+
 def parse_model_info_from_path(output_path: str):
-    # start-end-segmentation/////tmr/////majority-based-start-end-with-majority/////False/////mlp/////10
-    _, encoder_type, label_extractor, pretrained, classifier, window_size = os.path.basename(output_path).split('_')
+    config_path = os.path.join(output_path, "config.json")
+    
+    with open(config_path, 'r') as file:
+        config = json.load(file)
+    
+    encoder_type = config["model"]["motion_encoder"]["_target_"].split(".")[-1]
+    label_extractor = config["model"]["label_extractor"]["_target_"].split(".")[-1]
+    pretrained = config["model"]["motion_encoder"].get("pretrained", False)
+    classifier = config["model"]["classifier"]["_target_"].split(".")[-1]
+    window_positional_encoder = config["model"]["window_positional_encoder"]["_target_"].split(".")[-1]
+    
+    window_size = config["data"]["window_size"]
+    
+    name = f"{encoder_type} with {label_extractor}",
     
     return {
         "name": f"{encoder_type} with {label_extractor}",
@@ -83,7 +109,8 @@ def prepare_model_and_data(cfg: DictConfig, run_dir: str):
         {
             "_target_": "src.data.windowed_dataset.WindowedDataset",
         },
-        dir="/home/nadir/disk/datasets/babel-for-validation/",
+        # dir="/home/nadir/disk/datasets/babel-for-validation/",
+        dir="/home/nadir/windowed-babel-for-classification-for-validation",
         window_size=window_size,
         split="all",
         for_validation=True,
@@ -108,15 +135,15 @@ def run_qualitative_analysis(cfg: DictConfig, save_dir: str):
     model, dataset, device, window_size, mean, std = prepare_model_and_data(cfg, run_dir_to_visualize)
 
     random_indices = np.random.choice(len(dataset), size=cfg.num_qualitative_examples, replace=False)
-    visualizer = SegmentationVisualizer(labels_values=[0, 1])
+    visualizer = SegmentationVisualizer(labels_values=range(0,23))
     vote_manager = instantiate(cfg.vote_manager)
 
     for seq_index in random_indices:
         sample = dataset[seq_index]
         sample["transformed_motion"] = sample["transformed_motion"].to(device)
         sample["motion"] = sample["motion"].to(device)
-        sample["transition_mask"] = sample["transition_mask"].to(device)
-
+        sample["annotation"] = sample["annotation"].to(device)
+        
         outputs, exception = model.segment_sequence(
             sample,
             vote_manager=vote_manager,
@@ -131,18 +158,21 @@ def run_qualitative_analysis(cfg: DictConfig, save_dir: str):
             continue
 
         preds = outputs.cpu().numpy()
-        labels = sample["transition_mask"].cpu().numpy()
+        labels = sample["annotation"].cpu().numpy()
+        
+        labels = sample["annotation"].cpu().numpy()
+        labels[labels < 0] = -labels[labels < 0] + 20
         
         # --- --- ---
         
         temp_labels_path = os.path.join(save_dir, f"temp_labels_{seq_index}.png")
-        visualizer.plot_segmentation(labels, header="Ground Truth", fps=20, show_ticks=False)
+        visualizer.plot_segmentation(labels, header="Ground Truth", fps=20, show_ticks=True, show_legend=False)
         plt.savefig(temp_labels_path, dpi=150, bbox_inches='tight')
         plt.close()
 
         # 2. Generate and save the prediction plot to a temporary file
         temp_preds_path = os.path.join(save_dir, f"temp_preds_{seq_index}.png")
-        visualizer.plot_segmentation(preds, header="Prediction", fps=20, show_ticks=False)
+        visualizer.plot_segmentation(preds, header="Prediction", fps=20, show_ticks=True, show_legend=False)
         plt.savefig(temp_preds_path, dpi=150, bbox_inches='tight')
         plt.close()
 
@@ -187,7 +217,7 @@ def run_quantitative_analysis(cfg: DictConfig, save_dir: str):
         metrics = load_segmentation_metrics(
             output_path=output_path,
             window_size=window_size,
-            window_step=window_size,
+            window_step=window_step,
             vote_manager=vote_manager
         )
         if metrics:

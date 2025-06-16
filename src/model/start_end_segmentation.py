@@ -1,6 +1,9 @@
 import gc
+import sys
 import pdb
+import tqdm
 import torch
+import select
 import logging
 import torch.nn as nn
 
@@ -13,14 +16,24 @@ from src.model.label_extractors.index import LabelExtractor
 
 logger = logging.getLogger(__name__)
 
+def wait_for_debug(seconds=5):
+    logger.info("press 'Enter' within 5 seconds to enter debug mode...")
+    
+    ready, _, _ = select.select([sys.stdin], [], [], seconds)
+    
+    if ready:
+        pdb.set_trace()
+    else:
+        logger.info("(skipped)")
+
 class StartEndSegmentationModel(LightningModule):
     def __init__(
         self,
         motion_encoder: nn.Module,
         classifier: nn.Module,
         label_extractor: LabelExtractor,
-        lr: float,
-        window_positional_encoder: nn.Module | None = None,
+        window_positional_encoder: nn.Module,
+        lr: float
     ):
         super().__init__()
         self.lr = lr
@@ -31,9 +44,11 @@ class StartEndSegmentationModel(LightningModule):
         self.classifier = classifier
         self.window_positional_encoder = window_positional_encoder
 
-        self.classification_loss_fn = nn.BCEWithLogitsLoss()
+        self.classification_loss_fn = nn.CrossEntropyLoss()
         self.start_regression_loss_fn = nn.MSELoss()
         self.end_regression_loss_fn = nn.MSELoss()
+        
+        self.debug_at_multiple = 100
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.lr)
@@ -45,39 +60,52 @@ class StartEndSegmentationModel(LightningModule):
         
         preprocessed_motion = batch["transformed_motion"]
         motion = batch["motion"]
-        transition_mask = batch["annotation"]
+        annotation = batch["annotation"]
         
         window_position = batch.get("window_position", None)
         # NOTE: number of windows in the sequence
         sequence_size = batch.get("sequence_size", None)
         
-        latent = self.motion_encoder(batch)
+        encoding = self.motion_encoder(batch)
+        positional_embedding = self.window_positional_encoder(batch)
         
-        if self.window_positional_encoder is not None and window_position is not None and sequence_size is not None:
-            positional_embedding = self.window_positional_encoder(batch)
-            latent = positional_embedding + positional_embedding
+        latent = encoding + positional_embedding
         
         class_logits, start_logits, end_logits = self.classifier(latent)
         
         return class_logits, start_logits, end_logits
     
-    def compute_loss(self, class_logits: torch.Tensor, start_logits: torch.Tensor, end_logits: torch.Tensor, label: torch.Tensor):
-        # pdb.set_trace()
+    def compute_loss(
+        self,
+        class_logits: torch.Tensor,
+        start_logits: torch.Tensor,
+        end_logits: torch.Tensor,
+        label: torch.Tensor
+    ):
+        valid_mask = label[:, 0] >= 0
         
-        class_loss: torch.Tensor = self.classification_loss_fn(class_logits, label[:, 0])
+        if valid_mask.any():
+            # class_loss: torch.Tensor = self.classification_loss_fn(class_logits, label[:, 0])
+            class_loss = self.classification_loss_fn(class_logits[valid_mask], label[:, 0][valid_mask].long())
+        else:
+            class_loss = torch.sum(class_logits) * 0.0
+            # class_loss = torch.tensor(0.0, device=label.device)
 
-        valid_start_mask = label[:, 1] != -1
-        valid_end_mask = label[:, 2] != -1
-
+        # NOTE: only consider start loss where class is valid and start is not -1
+        valid_start_mask = (label[:, 1] != -1.0) & valid_mask
         if valid_start_mask.any():
             start_loss: torch.Tensor = self.start_regression_loss_fn(start_logits[valid_start_mask], label[:, 1][valid_start_mask])
         else:
-            start_loss = torch.tensor(0.0, device=label.device)
+            start_loss = torch.sum(start_logits) * 0.0
+            # start_loss = torch.tensor(0.0, device=label.device)
 
+        # NOTE: only consider start loss where class is valid and start is not -1
+        valid_end_mask = (label[:, 2] != -1.0) & valid_mask
         if valid_end_mask.any():
             end_loss: torch.Tensor = self.end_regression_loss_fn(end_logits[valid_end_mask], label[:, 2][valid_end_mask])
         else:
-            end_loss = torch.tensor(0.0, device=label.device)
+            end_loss = torch.sum(end_logits) * 0.0
+            # end_loss = torch.tensor(0.0, device=label.device)
 
         loss = class_loss + start_loss + end_loss
 
@@ -85,55 +113,77 @@ class StartEndSegmentationModel(LightningModule):
 
     def step(self, batch, batch_idx):
         # NOTE: preprocessed_motion (B, window_size, 263)
-        # NOTE: motion (B, WINDOW_SIZE, 22, 3)
-        # NOTE: transition_mask (B,)
-        # preprocessed_motion, motion, transition_mask = batch
-        
         preprocessed_motion = batch["transformed_motion"]
+        # NOTE: motion (B, WINDOW_SIZE, 22, 3)
         motion = batch["motion"]
-        transition_mask = batch["annotation"]
+        # NOTE: annotation (B,)
+        annotation = batch["annotation"]
         
-        # pdb.set_trace()
+        # if self.debug_at_multiple != -1 and self.global_step % self.debug_at_multiple == 0:
+        #     wait_for_debug()
         
-        label = self.label_extractor.extract(transition_mask)
-                
+        label = self.label_extractor.extract(annotation)
         class_logits, start_logits, end_logits = self.forward(batch, batch_idx)
         
-        class_logits = class_logits.view(-1)
+        # NOTE: commented out as it'll cause issues for multi-class classification
+        # class_logits = class_logits.view(-1)
         start_logits = start_logits.view(-1)
         end_logits = end_logits.view(-1)
     
         loss, (class_loss, start_loss, end_loss) = self.compute_loss(class_logits, start_logits, end_logits, label)
-        
-        return loss, (class_loss, start_loss, end_loss)
+        accuracy = self.compute_accuracy(class_logits, label)
+
+        return loss, accuracy, (class_loss, start_loss, end_loss)
     
-    def training_step(self, *args, **kwargs) :
+    def training_step(self, *args, **kwargs):
         batch = args[0]
         batch_idx = kwargs.get("batch_idx", 0)
         
         # logger.info(f"Before forward: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-        loss, (class_loss, start_loss, end_loss) = self.step(batch, batch_idx)
+        loss, accuracy, (class_loss, start_loss, end_loss) = self.step(batch, batch_idx)
         # logger.info(f"After forward / step: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("train_class_loss", class_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("train_start_loss", start_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("train_end_loss", end_loss, on_step=True, on_epoch=True, prog_bar=True)
         
+        self.log("train_class_loss", class_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("train_start_loss", start_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("train_end_loss", end_loss, on_step=True, on_epoch=True, prog_bar=False)
+        
+        self.log("train_accuracy", accuracy, on_step=True, on_epoch=True, prog_bar=True)
+
         return loss
 
     def validation_step(self, *args, **kwargs) :
         batch = args[0]
         batch_idx = kwargs.get("batch_idx", 0)
         
-        loss, (class_loss, start_loss, end_loss) = self.step(batch, batch_idx)
+        loss, accuracy, (class_loss, start_loss, end_loss) = self.step(batch, batch_idx)
         
         self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("val_class_loss", class_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("val_start_loss", start_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("val_end_loss", end_loss, on_step=True, on_epoch=True, prog_bar=True)
+        
+        self.log("val_class_loss", class_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("val_start_loss", start_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("val_end_loss", end_loss, on_step=True, on_epoch=True, prog_bar=False)
+        
+        self.log("val_accuracy", accuracy, on_step=True, on_epoch=True, prog_bar=True)
         
         return loss
+    
+    def compute_accuracy(self, class_logits: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
+        # NOTE: only consider valid labels (i.e., not -1)
+        valid_mask = label[:, 0] >= 0
+        
+        if valid_mask.any():
+            # [B_valid]
+            preds = class_logits[valid_mask].argmax(dim=-1)
+            # [B_valid]
+            targets = label[:, 0][valid_mask]
+            correct = (preds == targets).sum().float()
+            total = valid_mask.sum().float()
+            accuracy = correct / total
+            return accuracy
+        else:
+            return torch.tensor(0.0, device=label.device)
     
     def segment_sequence(
         self,
@@ -148,7 +198,7 @@ class StartEndSegmentationModel(LightningModule):
         Segment a motion sequence using sliding window classification.
 
         Args:
-            batch: Dictionary containing keys 'transformed_motion', 'motion', and 'transition_mask'
+            batch: Dictionary containing keys 'transformed_motion', 'motion', and 'annotation'
             window_size: Size of the sliding window
             window_step: Step size for sliding the window
             vote_manager: Instance of VoteManager to aggregate window scores
@@ -156,8 +206,10 @@ class StartEndSegmentationModel(LightningModule):
         Returns:
             Tensor: Per-frame classifications of shape (T,) where 1 indicates transition frame and 0 indicates action frame
         """
-        motion_sequence = batch["transformed_motion"]  # (T, 22, 3)
-        transformed_motion_sequence = batch["motion"]  # (T, 263)
+        # NOTE: (T, 263)  
+        transformed_motion_sequence = batch["transformed_motion"]
+        # NOTE: (T, 22, 3)
+        motion_sequence = batch["motion"]
         
         T, _, _ = motion_sequence.shape
         
@@ -185,16 +237,13 @@ class StartEndSegmentationModel(LightningModule):
             "transformed_motion": transformed_motion_windows.to(device).float(),
             "motion": motion_windows.to(device).float(),
             # NOTE: dummy
-            "transition_mask": torch.zeros(T_new, W, device=device).float()
+            "annotation": torch.zeros(T_new, W, device=device).float()
         }
-        
-        window_batch["annotation"] = window_batch["transition_mask"]
         
         self.eval()
         with torch.no_grad():
-            # NOTE: (T_new,)
+            # NOTE: (T_new, #classes)
             class_logits, _, _ = self.forward(window_batch, None)
-            class_logits = class_logits.view(T_new)
             
         per_frame_classes = vote_manager.aggregate(
             windows_scores=class_logits,
@@ -206,6 +255,7 @@ class StartEndSegmentationModel(LightningModule):
         return per_frame_classes, None
         
     def on_epoch_end(self):
+        wait_for_debug()
         torch.cuda.empty_cache()
         import gc
         gc.collect()

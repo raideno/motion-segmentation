@@ -166,14 +166,14 @@ def f_score(pred, gt, overlap=0.1):
     NOTE: Higher overlap threshold means stricter matching and thus minor misalignments
     will fail the IoU check. Typically, as the overlap threshold increases, the F1 score decreases.
     """
-    pred_segs = get_segments(pred)
-    gt_segs = get_segments(gt)
+    predicted_segments = get_segments(pred)
+    groundtruth_segments = get_segments(gt)
 
     true_positives = 0
     used = set()
 
-    for i, (plabel, pstart, pend) in enumerate(pred_segs):
-        for j, (glabel, gstart, gend) in enumerate(gt_segs):
+    for i, (plabel, pstart, pend) in enumerate(predicted_segments):
+        for j, (glabel, gstart, gend) in enumerate(groundtruth_segments):
             if j in used or plabel != glabel:
                 continue
 
@@ -186,9 +186,10 @@ def f_score(pred, gt, overlap=0.1):
                 used.add(j)
                 break
 
-    precision = true_positives / len(pred_segs) if pred_segs else 0
-    recall = true_positives / len(gt_segs) if gt_segs else 0
+    precision = true_positives / len(predicted_segments) if predicted_segments else 0
+    recall = true_positives / len(groundtruth_segments) if groundtruth_segments else 0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+    
     return f1
 
 def levenshtein(pred, gt):

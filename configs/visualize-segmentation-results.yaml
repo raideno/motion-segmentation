@@ -5,6 +5,6 @@ vote_manager: ???
 # score-based or class-based
 
 device: cuda:1
-qualitative_run_index: 1
-num_qualitative_examples: 10
+qualitative_run_index: 0
+num_qualitative_examples: 100
 ckpt: best

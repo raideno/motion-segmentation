@@ -9,7 +9,7 @@ class TMR(torch.nn.Module):
     def __init__(
         self,
         latent_dim=256,
-        pretrained=True
+        pretrained=False
     ):
         super().__init__()
         

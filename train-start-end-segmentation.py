@@ -9,6 +9,28 @@
 #   model/classifier=mlp \
 #   model/window_positional_encoder=null
 
+# HYDRA_FULL_ERROR=1 python train-start-end-segmentation.py \
+#     ++data.window_size=20 \
+#     ++data.dir=/home/nadir/windowed-babel-for-classification/ \
+#     ++data.balanced=false \
+#     ++data.normalize=false \
+#     model/label_extractor=majority-based-start-end-with-majority \
+#     model/motion_encoder=tmr \
+#     model/classifier=mlp \
+#     ++model.motion_encoder.pretrained=false \
+#     ++model.classifier.num_classes=20
+
+# HYDRA_FULL_ERROR=1 python train-start-end-segmentation.py \
+#     ++data.window_size=20 \
+#     ++data.dir=/home/nadir/windowed-babel-for-classification-for-training/ \
+#     ++data.balanced=false \
+#     ++data.normalize=false \
+#     model/label_extractor=majority-based-start-end-with-majority \
+#     model/motion_encoder=tmr \
+#     model/classifier=mlp \
+#     ++model.motion_encoder.pretrained=false \
+#     ++model.classifier.num_classes=20
+
 import tqdm
 import hydra
 import torch
@@ -79,6 +101,8 @@ def train_start_end_segmentation(cfg: DictConfig):
     trainer = instantiate(cfg.trainer)
     
     logger.info("[training]: started")    
+    
+    
     trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=ckpt)
 
 if __name__ == "__main__":

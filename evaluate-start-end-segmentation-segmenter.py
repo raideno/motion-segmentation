@@ -1,8 +1,8 @@
 # HYDRA_FULL_ERROR=1 python evaluate-start-end-segmentation-segmenter.py --multirun \
-#     data.dir=/home/nadir/disk/datasets/babel-for-validation \
-#     window_step=1,window_size \
-#     vote_manager=class-based,score-based \
-#     run_dir=/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_10,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_15,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_20,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_25,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_30,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_10,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_15,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_20,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_25,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_30,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_10,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_15,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_20,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_25,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_30
+#     data.dir=/home/nadir/windowed-babel-for-classification-for-validation \
+#     window_step=1 \
+#     vote_manager=score-based \
+#     run_dir=outputs/start-end-segmentation_None_tmr_majority-based-start-end-with-majority_False_mlp_20
     
 import os
 import tqdm
@@ -40,6 +40,8 @@ def extract_segments(sequence):
     segments.append((prev_label, start_idx, len(sequence)))
     return segments
 
+F1_THRESHOLDS = np.arange(0.1, 1.1, 0.1)
+
 @hydra.main(version_base=None, config_path="configs", config_name="evaluate-start-end-segmentation-segmenter")
 def evaluate_start_end_segmentation_segmenter(newcfg: DictConfig) -> None:
     device = newcfg.device
@@ -50,13 +52,13 @@ def evaluate_start_end_segmentation_segmenter(newcfg: DictConfig) -> None:
     save_dir = os.path.join(run_dir, "segmentation-evaluation")
     os.makedirs(save_dir, exist_ok=True)
     
-    print(newcfg.data)
+    print(f"[newcfg.data]: {newcfg.data}")
     
     window_size = int(run_dir.split("_mlp_")[1])
     window_step = int(newcfg.window_step) if f"{newcfg.window_step}".isdigit() else window_size if newcfg.window_step == "window_size" else 1
     
-    print("[window_size]:", window_size)
-    print("[window_step]:", window_step)
+    print(f"[window_size]: {window_size}")
+    print(f"[window_step]: {window_step}")
     
     vote_manager = instantiate(newcfg.vote_manager)
     
@@ -80,24 +82,15 @@ def evaluate_start_end_segmentation_segmenter(newcfg: DictConfig) -> None:
 
     model = model.eval()
 
-    all_preds, all_labels = [], []
+    all_predictions, all_groundtruths = [], []
     
-    # print("[#dataset]:", len(dataset))
-    
-    # key = "annotation"
-    key = "transition_mask"
-
     with torch.no_grad():
         for index, sample in tqdm.tqdm(iterable=enumerate(dataset), total=len(dataset), desc="[evaluate-segmentation]"):
-            sample["transformed_motion"] = sample["transformed_motion"].to(device)
-            
             sample["motion"] = sample["motion"].to(device)
-            sample[key] = sample[key].to(device)
+            sample["transformed_motion"] = sample["transformed_motion"].to(device)
+            sample["annotation"] = sample["annotation"].to(device)
             
-            sample["annotation"] = sample[key]
-            
-            # x = sample["motion_x_dict"]
-            y = sample[key]
+            label = sample["annotation"]
             
             outputs, exception = model.segment_sequence(
                 sample,
@@ -112,139 +105,97 @@ def evaluate_start_end_segmentation_segmenter(newcfg: DictConfig) -> None:
                 logger.warning(f"[skipped-sequence]: {index} due to {exception}")
                 continue
             
-            # print("[outputs.shape]:", outputs.shape)
+            prediction = outputs.cpu().numpy()
+            groundtruth = label.cpu().numpy()
             
-            preds = outputs.cpu().numpy()
-            labels = y.cpu().numpy()
+            all_predictions.append(prediction)
+            all_groundtruths.append(groundtruth)
             
-            all_preds.append(preds)
-            all_labels.append(labels)
-            
-            # labels = y.squeeze(1).cpu().numpy()
-            # for pred_seq, label_seq in zip(preds, labels):
-            #     all_preds.append(pred_seq)
-            #     all_labels.append(label_seq)
-
-    acc_list = []
-    edit_list = []
-    
-    f1_thresholds = np.arange(0.1, 1.1, 0.1)
-    f1_scores = []
+    accuracies_list = []
+    editscores_list = []
+    f1_scores = []    
     
     from src.model.metrics import accuracy_score, levenshtein, f_score
 
-    for pred_seq, label_seq in zip(all_preds, all_labels):
-        acc = accuracy_score(label_seq, pred_seq)
-        edit = levenshtein(pred_seq, label_seq)
+    for predicted_sequence, groundtruth_sequence in zip(all_predictions, all_groundtruths):
+        accuracy = accuracy_score(groundtruth_sequence, predicted_sequence)
+        # editscore = levenshtein(predicted_sequence, groundtruth_sequence)
+        editscore = levenshtein(groundtruth_sequence, predicted_sequence)
+        # f1_thresholds_scores = list(map(lambda threshold: f_score(predicted_sequence, groundtruth_sequence, overlap=threshold), F1_THRESHOLDS))
+        f1_thresholds_scores = list(map(lambda threshold: f_score(groundtruth_sequence, predicted_sequence, overlap=threshold), F1_THRESHOLDS))
         
-        f1_thresholds_scores = []
-        
-        for threshold in f1_thresholds:
-            f1_thresholds_scores.append(f_score(pred_seq, label_seq, overlap=threshold))
-
-        acc_list.append(acc)
-        edit_list.append(edit)
+        accuracies_list.append(accuracy)
+        editscores_list.append(editscore)
         f1_scores.append(f1_thresholds_scores)
 
-    print("Frame-wise Accuracy: {:.2f}%".format(100 * np.mean(acc_list)))
-    print("Edit Score: {:.2f}%".format(100 * np.mean(edit_list)))
+    print("Frame-wise Accuracy: {:.2f}%".format(100 * np.mean(accuracies_list)))
+    print("Edit Score: {:.2f}%".format(100 * np.mean(editscores_list)))
 
-    for i, threshold in enumerate(f1_thresholds):
+    for i, threshold in enumerate(F1_THRESHOLDS):
         scores = [f1_scores[j][i] for j in range(len(f1_scores))]
         print(f"F1@{threshold:.2f}: {100 * np.mean(scores):.2f}%")
         
+    average_f1_score = np.mean(f1_scores)
+    
+    print(f"Average F1 Score: {100 * average_f1_score:.2F}")
+        
     evaluation_metrics: dict = {
-        "framewise_accuracy": float(np.mean(acc_list)),
-        "edit_score": float(np.mean(edit_list)),
+        "framewise_accuracy": float(np.mean(accuracies_list)),
+        "edit_score": float(np.mean(editscores_list)),
+        "average_f1_score": average_f1_score,
         "f1_scores": {
             f"f1@{threshold:.2f}": float(np.mean([f1_scores[j][i] for j in range(len(f1_scores))]))
-            for i, threshold in enumerate(f1_thresholds)
+            for i, threshold in enumerate(F1_THRESHOLDS)
         }
     }
     
     # --- --- ---
     
-    flat_preds = np.concatenate([p.flatten() for p in all_preds])
-    flat_labels = np.concatenate([l.flatten() for l in all_labels])
+    flat_predictions = np.concatenate([prediction.flatten() for prediction in all_predictions])
+    flat_groundtruths = np.concatenate([groundtruth.flatten() for groundtruth in all_groundtruths])
 
-    # NOTE: False Positive: predicted 1, ground truth is 0
-    fp_frames = np.logical_and(flat_preds == 1, flat_labels == 0).sum()
-    total_frames = len(flat_preds)
+    unique_classes = np.unique(np.concatenate([flat_predictions, flat_groundtruths]))
 
-    frame_fp_rate = fp_frames / total_frames if total_frames > 0 else 0.0
-
-    print(f"Frame-level False Positive Rate: {100 * frame_fp_rate:.2f}%")
-
-    evaluation_metrics["false_positive_score"] = float(frame_fp_rate)
+    per_class_falsepositive_rates = {}
+    total_frames = len(flat_predictions)
     
-    # --- --- ---
-    
-    transition_accuracies = []
-
-    def count_transitions(seq):
-        return len(extract_segments(seq)) - 1
-
-    for pred_seq, label_seq in zip(all_preds, all_labels):
-        gt_transitions = count_transitions(label_seq)
-        pred_transitions = count_transitions(pred_seq)
+    for cls in unique_classes:
+        # NOTE: predicted this class, but ground truth is not this class
+        falsepositive_frames = np.logical_and(flat_predictions == cls, flat_groundtruths != cls).sum()
+        falsepositive_rate = falsepositive_frames / total_frames if total_frames > 0 else 0.0
         
-        if gt_transitions > 0:
-            acc = 1.0 - abs(pred_transitions - gt_transitions) / gt_transitions
-        else:
-            acc = 1.0 if pred_transitions == 0 else 0.0
+        per_class_falsepositive_rates[f"class_{int(cls)}"] = float(falsepositive_rate)
+        
+        print(f"\tClass {int(cls)} False Positive Rate: {100 * falsepositive_rate:.2f}%")
 
-        transition_accuracies.append(acc)
+    overall_fp_rate = np.mean(list(per_class_falsepositive_rates.values()))
+    
+    print(f"Overall False Positive Rate: {100 * overall_fp_rate:.2f}%")
 
-    mean_transition_acc = np.mean(transition_accuracies)
-
-    print(f"Transition Count Accuracy: {100 * mean_transition_acc:.2f}%")
-
-    evaluation_metrics["transition_count_accuracy"] = float(mean_transition_acc)
+    evaluation_metrics["per_class_false_positive_rates"] = per_class_falsepositive_rates
+    evaluation_metrics["overall_false_positive_rate"] = float(overall_fp_rate)
     
     # --- --- ---
     
-    from sklearn.metrics import (
-        classification_report,
-        confusion_matrix,
-        balanced_accuracy_score,
-        matthews_corrcoef
-    )
-    
-    flat_preds = np.concatenate([p.flatten() for p in all_preds])
-    flat_labels = np.concatenate([l.flatten() for l in all_labels])
-    
-    report = classification_report(flat_labels, flat_preds, output_dict=True, zero_division=0)
-    balanced_acc = balanced_accuracy_score(flat_labels, flat_preds)
-    mcc = matthews_corrcoef(flat_labels, flat_preds)
+    segments_count_accuracies = []
 
-    # Optionally, also compute and print confusion matrix
-    conf_matrix = confusion_matrix(flat_labels, flat_preds, normalize='true')
-    
-    print("\n--- Additional Evaluation Metrics (for imbalanced data) ---")
-    print(f"Balanced Accuracy: {100 * balanced_acc:.2f}%")
-    print(f"Matthews Correlation Coefficient: {mcc:.4f}")
-    print("Per-class Precision, Recall, F1:")
-    for cls in report:
-        if cls not in ("accuracy", "macro avg", "weighted avg"):
-            print(f"Class {cls}: "
-                f"Precision={100 * report[cls]['precision']:.2f}%, "
-                f"Recall={100 * report[cls]['recall']:.2f}%, "
-                f"F1={100 * report[cls]['f1-score']:.2f}%")
-            
-    evaluation_metrics.update({
-        "balanced_accuracy": float(balanced_acc),
-        "matthews_corrcoef": float(mcc),
-        "per_class": {
-            cls: {
-                "precision": float(report[cls]["precision"]),
-                "recall": float(report[cls]["recall"]),
-                "f1": float(report[cls]["f1-score"])
-            }
-            for cls in report
-            if cls not in ("accuracy", "macro avg", "weighted avg")
-        }
-    })
-    
+    for groundtruth_sequence, predicted_sequence in zip(all_groundtruths, all_predictions):
+        groundtruth_segments_count = len(extract_segments(groundtruth_sequence))
+        prediction_segments_count = len(extract_segments(predicted_sequence))
+        
+        if groundtruth_segments_count > 0:
+            segments_count_accuracy = 1.0 - abs(prediction_segments_count - groundtruth_segments_count) / groundtruth_segments_count
+        else:
+            segments_count_accuracy = 1.0
+
+        segments_count_accuracies.append(segments_count_accuracy)
+
+    mean_segments_count_accuracy = np.mean(segments_count_accuracies)
+
+    print(f"Segments Count Accuracy: {100 * mean_segments_count_accuracy:.2f}%")
+
+    evaluation_metrics["segments_count_accuracy"] = float(mean_segments_count_accuracy)
+        
     # --- --- ---
 
     metrics_path = os.path.join(save_dir, f"metrics-{window_size}-{window_step}-{newcfg['vote_manager']['_target_'].split('.')[-1]}")

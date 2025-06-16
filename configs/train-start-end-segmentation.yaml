@@ -1,7 +1,8 @@
 ckpt: last
 resume_dir: null
 
-run_dir: outputs/${hydra:runtime.choices.model}_${hydra:runtime.choices.model/window_positional_encoder}_${hydra:runtime.choices.model/motion_encoder}_${hydra:runtime.choices.model/label_extractor}_${model.motion_encoder.pretrained}_${hydra:runtime.choices.model/classifier}_${data.window_size}
+run_dir: outputs/model=${hydra:runtime.choices.model}_pos=${hydra:runtime.choices.model/window_positional_encoder}_motion-encoder=${hydra:runtime.choices.model/motion_encoder}_label-extractor=${hydra:runtime.choices.model/label_extractor}_pretrained=${model.motion_encoder.pretrained}_classifier=${hydra:runtime.choices.model/classifier}_window-size=${data.window_size}
+
 # run_dir: outputs/${hydra:runtime.choices.model}_${hydra:runtime.choices.model/motion_encoder}_${model.motion_encoder.pretrained}_${hydra:runtime.choices.model/classifier}_${data.window_size}
 # run_dir: outputs/${hydra:runtime.choices.model}_${hydra:runtime.choices.model/motion_encoder}_${model.motion_encoder.pretrained}_${hydra:runtime.choices.model/classifier}_${data.window_size}_${now:%Y-%m-%d_%H-%M-%S}
 

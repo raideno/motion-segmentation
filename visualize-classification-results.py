@@ -76,6 +76,8 @@ def process_run_data(output_path: str, max_epochs: int | None = None):
         epoch_data = log[log['epoch'].notna()].copy()
         epochs = sorted(epoch_data['epoch'].unique())
         
+        print("[len(epochs)]:", len(epochs))
+        
         if max_epochs is not None:
             epochs = [epoch for epoch in epochs if epoch <= max_epochs]
         

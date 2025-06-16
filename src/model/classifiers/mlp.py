@@ -5,17 +5,19 @@ class MLPClassifier(torch.nn.Module):
     def __init__(
         self,
         latent_dim=256,
-        hidden_dim=128
+        hidden_dim=128,
+        num_classes=20
     ):
         super().__init__()
         
         self.latent_dim = latent_dim
         self.hidden_dim = hidden_dim
+        self.num_classes = num_classes
         
         self.classification_head = nn.Sequential(
             nn.Linear(self.latent_dim, self.hidden_dim),
             nn.ReLU(),
-            nn.Linear(self.hidden_dim, 1),
+            nn.Linear(self.hidden_dim, self.num_classes),
         )
         
         self.start_regression_head = nn.Sequential(

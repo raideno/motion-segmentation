@@ -39,7 +39,9 @@ class WindowedDataset(Dataset):
         if not for_validation:
             # self.filesnames = glob.glob(f"**/*.*.pt", root_dir=self.dir, recursive=True)
             # f"{global_index}.{sample['sid']}.majorityClass={majorityClass}.hasTransition={hasTransition}.pt"
-            self.filesnames = glob.glob(f"**/*.*.*.*.pt", root_dir=self.dir, recursive=True)
+            # self.filesnames = glob.glob(f"**/*.*.*.*.pt", root_dir=self.dir, recursive=True)
+            # NOTE: for multi class classification
+            self.filesnames = glob.glob(f"**/*.*.*pt", root_dir=self.dir, recursive=True)
         else:
             print("here")
             self.filesnames = list(filter(lambda filename: filename.split(".")[0].isdigit(), glob.glob(f"**/*.pt", root_dir=self.dir, recursive=True)))
