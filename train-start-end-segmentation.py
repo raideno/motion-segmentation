@@ -26,10 +26,11 @@
 #     ++data.balanced=false \
 #     ++data.normalize=false \
 #     model/label_extractor=majority-based-start-end-with-majority \
-#     model/motion_encoder=tmr \
+#     model/motion_encoder=stgcn \
 #     model/classifier=mlp \
 #     ++model.motion_encoder.pretrained=false \
-#     ++model.classifier.num_classes=20
+#     ++model.classifier.num_classes=20 \
+#     resume_dir=/home/nadir/tmr-code/outputs/stgcn-multi-class
 
 import tqdm
 import hydra
@@ -93,6 +94,12 @@ def train_start_end_segmentation(cfg: DictConfig):
         shuffle=False,
     )
     
+    for batch in tqdm.tqdm(iterable=train_dataloader, total=len(train_dataloader), desc="[preload-dataloader]:"):
+        pass
+    
+    for batch in tqdm.tqdm(iterable=val_dataloader, total=len(val_dataloader), desc="[preload-dataloader]:"):
+        pass
+    
     logger.info("[model]: loading the model")
     model = instantiate(cfg.model)
     
@@ -101,7 +108,6 @@ def train_start_end_segmentation(cfg: DictConfig):
     trainer = instantiate(cfg.trainer)
     
     logger.info("[training]: started")    
-    
     
     trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=ckpt)
 

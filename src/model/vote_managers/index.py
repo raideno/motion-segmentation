@@ -7,6 +7,7 @@ class VoteManager(ABC):
     @abstractmethod
     def aggregate(
         self,
+        number_of_frames: int,
         windows_scores: torch.Tensor,
         window_size: int,
         window_step: int = 1

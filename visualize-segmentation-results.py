@@ -6,6 +6,14 @@
 #     num_qualitative_examples=32 \
 #     run_dirs=[/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_10,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_15,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_20,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_25,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_30,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_10,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_15,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_20,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_25,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_30,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_10,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_15,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_20,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_25,/home/nadir/tmr-code/outputs/archives.new/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_30]
 
+# HYDRA_FULL_ERROR=1 python visualize-segmentation-results.py --multirun \
+#     +data.dir=/home/nadir/windowed-babel-for-classification-for-validation \
+#     window_step=1 \
+#     +vote_manager=score-based \
+#     qualitative_run_index=0 \
+#     num_qualitative_examples=128 \
+#     run_dirs=[/home/nadir/tmr-code/outputs/multi-class-model-super-super-06-17-10:22]
+
 import os
 import yaml
 import json
@@ -224,8 +232,6 @@ def run_quantitative_analysis(cfg: DictConfig, save_dir: str):
             all_metrics.append({
                 'model': model_name, 'window_size': window_size,
                 **metrics, **metrics['f1_scores'],
-                'class_0_f1': metrics['per_class']['0.0']['f1'],
-                'class_1_f1': metrics['per_class']['1.0']['f1'],
             })
             model_data[model_name][window_size] = metrics
 
@@ -234,7 +240,7 @@ def run_quantitative_analysis(cfg: DictConfig, save_dir: str):
         return
 
     df = pd.DataFrame(all_metrics)
-    df = df.drop(columns=['f1_scores', 'per_class'])
+    # df = df.drop(columns=['f1_scores', 'per_class'])
     
     logger.info(f"loaded metrics for {len(all_metrics)} configurations.")
     logger.info(f"models: {df['model'].unique()}")
@@ -245,11 +251,11 @@ def run_quantitative_analysis(cfg: DictConfig, save_dir: str):
     
     # NOTE: Key Metrics vs. Window Size
     key_metrics_to_plot = [
-        ('transition_count_accuracy', 'Transition Count Accuracy'),
+        ('segments_count_accuracy', 'Segments Count Accuracy'),
         ('framewise_accuracy', 'Framewise Accuracy'),
         ('edit_score', 'Edit Score'),
-        ('balanced_accuracy', 'Balanced Accuracy'),
-        ('false_positive_score', 'False Positive Score')
+        ('average_f1_score', 'Average F1 Score'),
+        ('overall_false_positive_rate', 'Overall False Positive Rate')
     ]
     fig, axes = plt.subplots(1, len(key_metrics_to_plot), figsize=(24, 5), sharex=True)
     fig.suptitle('Model Performance Metrics vs Window Size', fontsize=18, fontweight='bold')
@@ -339,9 +345,9 @@ def main(cfg: DictConfig):
     
     logger.info(f"starting segmentation analysis. Outputs will be saved to '{output_dir}'")
     
-    run_qualitative_analysis(cfg, save_dir=examples_dir)
-    
     run_quantitative_analysis(cfg, save_dir=quantitative_dir)
+    
+    run_qualitative_analysis(cfg, save_dir=examples_dir)
 
     logger.info("Analysis complete.")
 

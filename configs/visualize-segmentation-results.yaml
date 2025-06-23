@@ -1,7 +1,11 @@
-run_dirs: ???
-window_step: ???
+run_dirs:
+  - /home/nadir/tmr-code/outputs/model=start-end-segmentation_pos=none_motion-encoder=tmr_label-extractor=majority-based-start-end-with-majority_pretrained=False_classifier=mlp_window-size=20
+  - /home/nadir/tmr-code/outputs/model=start-end-segmentation_pos=none_motion-encoder=stgcn_label-extractor=majority-based-start-end-with-majority_pretrained=False_classifier=mlp_window-size=20
 
-vote_manager: ???
+window_step: 1
+
+defaults:
+  - vote_manager: score-based
 # score-based or class-based
 
 device: cuda:1

@@ -5,6 +5,7 @@ import tqdm
 import torch
 import select
 import logging
+import torchmetrics
 import torch.nn as nn
 
 from typing import Dict
@@ -47,6 +48,16 @@ class StartEndSegmentationModel(LightningModule):
         self.classification_loss_fn = nn.CrossEntropyLoss()
         self.start_regression_loss_fn = nn.MSELoss()
         self.end_regression_loss_fn = nn.MSELoss()
+        
+        self.train_accuracy = torchmetrics.classification.MulticlassAccuracy(
+            num_classes=self.classifier.num_classes,
+            ignore_index=-1
+        )
+        self.val_accuracy = torchmetrics.classification.MulticlassAccuracy(
+            num_classes=self.classifier.num_classes,
+            ignore_index=-1
+        )
+    
         
         self.debug_at_multiple = 100
 
@@ -131,17 +142,16 @@ class StartEndSegmentationModel(LightningModule):
         end_logits = end_logits.view(-1)
     
         loss, (class_loss, start_loss, end_loss) = self.compute_loss(class_logits, start_logits, end_logits, label)
-        accuracy = self.compute_accuracy(class_logits, label)
 
-        return loss, accuracy, (class_loss, start_loss, end_loss)
+        return loss, (class_loss, start_loss, end_loss), (class_logits, start_logits, end_logits), label
     
     def training_step(self, *args, **kwargs):
         batch = args[0]
         batch_idx = kwargs.get("batch_idx", 0)
         
-        # logger.info(f"Before forward: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-        loss, accuracy, (class_loss, start_loss, end_loss) = self.step(batch, batch_idx)
-        # logger.info(f"After forward / step: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+        loss, (class_loss, start_loss, end_loss), (class_logits, start_logits, end_logits), label = self.step(batch, batch_idx)
+        
+        self.train_accuracy.update(class_logits, label[:, 0].long())
         
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         
@@ -149,7 +159,7 @@ class StartEndSegmentationModel(LightningModule):
         self.log("train_start_loss", start_loss, on_step=True, on_epoch=True, prog_bar=False)
         self.log("train_end_loss", end_loss, on_step=True, on_epoch=True, prog_bar=False)
         
-        self.log("train_accuracy", accuracy, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train_accuracy", self.train_accuracy, on_step=False, on_epoch=True, prog_bar=True)
 
         return loss
 
@@ -157,7 +167,9 @@ class StartEndSegmentationModel(LightningModule):
         batch = args[0]
         batch_idx = kwargs.get("batch_idx", 0)
         
-        loss, accuracy, (class_loss, start_loss, end_loss) = self.step(batch, batch_idx)
+        loss, (class_loss, start_loss, end_loss), (class_logits, start_logits, end_logits), label = self.step(batch, batch_idx)
+        
+        self.val_accuracy.update(class_logits, label[:, 0].long())
         
         self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         
@@ -165,22 +177,44 @@ class StartEndSegmentationModel(LightningModule):
         self.log("val_start_loss", start_loss, on_step=True, on_epoch=True, prog_bar=False)
         self.log("val_end_loss", end_loss, on_step=True, on_epoch=True, prog_bar=False)
         
-        self.log("val_accuracy", accuracy, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_accuracy", self.val_accuracy, on_step=False, on_epoch=True, prog_bar=True)
         
         return loss
     
     def compute_accuracy(self, class_logits: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
+        """
+        Compute classification accuracy for start/end segmentation predictions.
+        
+        Args:
+            class_logits (torch.Tensor): Raw logits from the classification head.
+                Shape: [B, #classes] where B is batch size.
+            label (torch.Tensor): Ground truth labels.
+                Shape: [B, L] where B is batch size and L=3 contains label information.
+                The first column (label[:, 0]) contains the actual class labels, with -1 indicating invalid/masked samples to ignore.
+                
+        Returns:
+            torch.Tensor: Scalar tensor containing the accuracy value (correct predictions / total valid predictions).
+                Returns 0.0 if no valid labels are present in the batch.
+        Note:
+            Only considers valid labels (i.e., labels that are not -1) when computing accuracy.
+            Invalid samples are filtered out using a validity mask.
+        """
         # NOTE: only consider valid labels (i.e., not -1)
         valid_mask = label[:, 0] >= 0
         
         if valid_mask.any():
             # [B_valid]
             preds = class_logits[valid_mask].argmax(dim=-1)
+            
             # [B_valid]
             targets = label[:, 0][valid_mask]
+            
             correct = (preds == targets).sum().float()
+
             total = valid_mask.sum().float()
+
             accuracy = correct / total
+
             return accuracy
         else:
             return torch.tensor(0.0, device=label.device)
@@ -193,7 +227,7 @@ class StartEndSegmentationModel(LightningModule):
         window_step: int = 1,
         mean = None,
         std = None,
-    ) -> tuple[Tensor | None, Exception | None]:
+    ) -> tuple[Tensor | None, Tensor | None, Exception | None]:
         """
         Segment a motion sequence using sliding window classification.
 
@@ -217,7 +251,7 @@ class StartEndSegmentationModel(LightningModule):
 
         if T < window_size:
             logger.warning(f"Short sequence (T={T}) padded to window size ({window_size})")
-            return None, Exception("Sequence too short for window size")
+            return None, None, Exception("Sequence too short for window size")
 
         transformed_motion_windows = transformed_motion_sequence.unfold(dimension=0, size=window_size, step=window_step)
         motion_windows = motion_sequence.unfold(dimension=0, size=window_size, step=window_step)
@@ -252,10 +286,24 @@ class StartEndSegmentationModel(LightningModule):
             window_step=window_step
         )
 
-        return per_frame_classes, None
+        per_frame_logits = vote_manager.aggregate_logits(
+            windows_scores=class_logits,
+            number_of_frames=T,
+            window_size=window_size,
+            window_step=window_step,
+            apply_softmax=True
+        )
+
+        return per_frame_classes, per_frame_logits, None
+    
+    def on_train_epoch_end(self):
+        self.train_accuracy.reset()
+
+    def on_validation_epoch_end(self):
+        self.val_accuracy.reset()
         
     def on_epoch_end(self):
         wait_for_debug()
+        
         torch.cuda.empty_cache()
-        import gc
         gc.collect()

@@ -20,8 +20,12 @@ class AMASSMotionLoader:
         begin = int(start * self.fps)
         end = int(end * self.fps)
         if path not in self.motions:
-            motion_path = os.path.join(self.base_dir, path + ".npy")
+            # motion_path = os.path.join(self.base_dir, path + ".npy")
+            # motion_path = os.path.join(self.base_dir, path + ".guoh3dfeats.npy")
+            # motion_path = os.path.join(self.base_dir, path + "_transformed.npz")
+            motion_path = os.path.join(self.base_dir, path.split(".")[0] + "_transformed.npz")
             motion = np.load(motion_path)
+            motion = motion["new_joint_vecs"]
             motion = torch.from_numpy(motion).to(torch.float)
             if self.normalizer is not None:
                 motion = self.normalizer(motion)

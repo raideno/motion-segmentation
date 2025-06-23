@@ -129,8 +129,6 @@ def cols2metrics(cols, num_queries, rounding=2):
             metrics[key] = round(metrics[key], rounding)
     return metrics
 
-import editdistance
-
 from sklearn.metrics import balanced_accuracy_score, accuracy_score, precision_score, recall_score, f1_score
 
 def get_segments(labels):
@@ -139,7 +137,9 @@ def get_segments(labels):
     """
     segments = []
     last_label = labels[0]
+    
     start = 0
+    
     for i in range(1, len(labels)):
         if labels[i] != last_label:
             segments.append((last_label, start, i))
@@ -148,49 +148,74 @@ def get_segments(labels):
     segments.append((last_label, start, len(labels)))
     return segments
 
-def f_score(pred, gt, overlap=0.1):
+def f_score(prediction, groundtruth, overlap=0.1):
     """
-    Computes F1@{overlap} for a single sequence. It measures segment wise detection performance
-    with a temporal intersection over union (IoU) threshold.
+    Computes F1@{overlap} for a single sequence.
+    A predicted segment is considered a True Positive (TP) if:
+        - It has label match with GT segment.
+        - Its IoU with the GT segment is >= threshold.
+        - It hasn't already been matched with another prediction.
+    A False Positive is any predicted segment that dosen't match any GT segment (based on label and IoU with threshold).
+    A False Negative is any GT segment that didn't get matched by any prediction.
     
-    Match each predicted segment with a ground truth segment,
-    the match is accepted if their IoU is greater than the overlap threshold. Each ground truth
-    segment can only be matched once.
-    
-    True Positives = # of matched segments
-    Precision = TP / # of predicted segments
-    Recall = TP / # of ground truth segments
-    
-    F1 = 2 * Precision * Recall / (Precision + Recall)
-    
-    NOTE: Higher overlap threshold means stricter matching and thus minor misalignments
-    will fail the IoU check. Typically, as the overlap threshold increases, the F1 score decreases.
+    Parameters
+    ----------
+    pred : array-like
+        Predicted frame-wise labels
+    gt : array-like
+        Ground truth frame-wise labels
+    overlap : float
+        IoU threshold for matching (default: 0.1)
+        
+    Returns
+    -------
+    float
+        F1 score between 0 and 1
     """
-    predicted_segments = get_segments(pred)
-    groundtruth_segments = get_segments(gt)
+    predicted_segments = get_segments(prediction)
+    groundtruth_segments = get_segments(groundtruth)
 
     true_positives = 0
-    used = set()
+    false_positives = 0
+        
+    used_groundtruths = set()
 
-    for i, (plabel, pstart, pend) in enumerate(predicted_segments):
-        for j, (glabel, gstart, gend) in enumerate(groundtruth_segments):
-            if j in used or plabel != glabel:
+    for i, (predicted_label, predicted_start, predicted_end) in enumerate(predicted_segments):
+        best_match = -1
+        best_iou = 0
+        
+        for j, (groundtruth_label, groundtruth_start, groundtruth_end) in enumerate(groundtruth_segments):
+            if j in used_groundtruths or predicted_label != groundtruth_label:
                 continue
 
-            intersection = max(0, min(pend, gend) - max(pstart, gstart))
-            union = max(pend, gend) - min(pstart, gstart)
+            intersection = max(0, min(predicted_end, groundtruth_end) - max(predicted_start, groundtruth_start))
+            union = max(predicted_end, groundtruth_end) - min(predicted_start, groundtruth_start)
+            
             iou = intersection / union
 
-            if iou >= overlap:
-                true_positives += 1
-                used.add(j)
-                break
+            if iou >= overlap and iou > best_iou:
+                best_iou = iou
+                best_match = j
+            
+        # NOTE: if we found a match to the prediction with at least the given overlap threshold
+        # we count  +1 for true positives
+        if best_match != -1:
+            true_positives += 1
+            used_groundtruths.add(best_match)
+        # NOTE: otherwise if not match if found, we add it to the false positives
+        else:
+            false_positives += 1
+            
+    false_negatives = len(groundtruth_segments) - len(used_groundtruths)
+    
+    precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+    recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
 
-    precision = true_positives / len(predicted_segments) if predicted_segments else 0
-    recall = true_positives / len(groundtruth_segments) if groundtruth_segments else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+    f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
     
     return f1
+
+import editdistance
 
 def levenshtein(pred, gt):
     """

@@ -1,6 +1,6 @@
-# HYDRA_FULL_ERROR=1 python visualize-classification-result.py \
+# HYDRA_FULL_ERROR=1 python visualize-classification-results.py \
 #     max_epochs=null \
-#     run_dirs=[/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_10,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_15,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_20,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_25,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_majority-based-start-end-with-majority_False_mlp_30,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_10,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_15,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_20,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_25,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-with-majority_False_mlp_30,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_10,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_15,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_20,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_25,/home/nadir/tmr-code/outputs/start-end-segmentation_tmr_transition-based-start-end-without-majority_False_mlp_30]
+#     run_dirs=[/home/nadir/tmr-code/outputs/multi-class-model-super-super-06-17-10:22]
 
 import os
 import re
@@ -96,7 +96,11 @@ def process_run_data(output_path: str, max_epochs: int | None = None):
             'train_end_loss',
             'val_class_loss',
             'val_start_loss',
-            'val_end_loss'
+            'val_end_loss',
+        ]
+        metric_types = [
+            'train_accuracy',
+            'val_accuracy'
         ]
 
         for epoch in epochs:
@@ -104,6 +108,9 @@ def process_run_data(output_path: str, max_epochs: int | None = None):
             for loss_type in loss_types:
                 loss_val = get_epoch_loss(epoch_rows, f'{loss_type}_epoch', f'{loss_type}_step')
                 losses[loss_type].append(loss_val)
+            for metric_type in metric_types:
+                metric_val = get_epoch_loss(epoch_rows, f'{metric_type}', "random-gibrish-to-ignore")
+                losses[metric_type].append(metric_val)
         
         run_info.update(losses)
         return run_info
@@ -177,14 +184,20 @@ def main(cfg: DictConfig):
 
                 val_losses_np = np.array(val_losses, dtype=float)
                 if np.any(~np.isnan(val_losses_np)):
-                    min_val_idx = np.nanargmin(val_losses_np)
-                    min_val_epoch = epochs[min_val_idx]
-                    min_val_loss = val_losses_np[min_val_idx]
-                    ax.axhline(min_val_loss, color='red', linestyle='--', linewidth=1, alpha=0.7)
-                    ax.axvline(min_val_epoch, color='red', linestyle='--', linewidth=1, alpha=0.7)
-                    ax.annotate(f"Min: {min_val_loss:.3f} @ E{int(min_val_epoch)}",
-                                xy=(min_val_epoch, min_val_loss), xytext=(5, -15),
-                                textcoords='offset points', fontsize=8, color='red')
+                    # Find index of minimum loss, handling NaN values
+                    valid_mask = ~np.isnan(val_losses_np)
+                    if np.any(valid_mask):
+                        valid_indices = np.where(valid_mask)[0]
+                        valid_values = val_losses_np[valid_mask]
+                        min_valid_idx = np.argmin(valid_values)
+                        min_val_idx = valid_indices[min_valid_idx]
+                        min_val_epoch = epochs[min_val_idx]
+                        min_val_loss = val_losses_np[min_val_idx]
+                        ax.axhline(min_val_loss, color='red', linestyle='--', linewidth=1, alpha=0.7)
+                        ax.axvline(min_val_epoch, color='red', linestyle='--', linewidth=1, alpha=0.7)
+                        ax.annotate(f"Min: {min_val_loss:.3f} @ E{int(min_val_epoch)}",
+                                    xy=(min_val_epoch, min_val_loss), xytext=(5, -15),
+                                    textcoords='offset points', fontsize=8, color='red')
 
             ax.grid(True, alpha=0.3)
             ax.set_ylim(global_min * 0.95, global_max * 1.05)
@@ -192,11 +205,11 @@ def main(cfg: DictConfig):
             
             metrics = load_metrics(run_data['path'])
             acc_text = "No metrics found"
-            if metrics:
+            if metrics and isinstance(metrics, dict):
                 acc = metrics.get("overall_accuracy", 0) * 100
                 acc_text = f"Accuracy: {acc:.2f}%"
             ax.text(0.05, 0.95, acc_text, transform=ax.transAxes, fontsize=10,
-                    verticalalignment='top', bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.7))
+                    verticalalignment='top', bbox={"boxstyle": "round,pad=0.3", "fc": "white", "alpha": 0.7})
 
     # NOTE: detailed component losses
     fig_detailed, axes_detailed = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4.5), squeeze=False, constrained_layout=True)
@@ -235,17 +248,97 @@ def main(cfg: DictConfig):
             ax.grid(True, alpha=0.3)
             if handles: ax.legend(handles, labels, fontsize=9)
 
+    # NOTE: accuracy evolution
+    fig_accuracy, axes_accuracy = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4.5), squeeze=False, constrained_layout=True)
+    fig_accuracy.suptitle("Accuracy Evolution", fontsize=20, weight='bold')
+
+    # Calculate global accuracy range for consistent y-axis
+    all_accuracies = []
+    for d in all_run_data:
+        for key in ['train_accuracy', 'val_accuracy']:
+            if d.get(key):
+                all_accuracies.extend(d[key])
+    
+    valid_accuracies = [acc for acc in all_accuracies if pd.notna(acc)]
+    global_acc_min = np.min(valid_accuracies) if valid_accuracies else 0
+    global_acc_max = np.max(valid_accuracies) if valid_accuracies else 1
+
+    for r, model_label in enumerate(model_labels):
+        for c, window_size in enumerate(window_sizes):
+            ax = axes_accuracy[r, c]
+            run_data = data_grid.get((model_label, window_size))
+
+            if run_data is None:
+                ax.axis('off')
+                continue
+
+            ax.set_xlabel("Epoch")
+            ax.set_ylabel("Accuracy")
+
+            if c == 0: ax.set_ylabel(model_label, fontsize=14, weight='bold')
+            if r == 0: ax.set_title(f"Window Size = {window_size}", fontsize=14, weight='bold')
+
+            epochs = run_data['epochs']
+            handles, labels = [], []
+
+            train_accuracies = run_data.get('train_accuracy', [])
+            if any(pd.notna(acc) for acc in train_accuracies):
+                p_train, = ax.plot(epochs, train_accuracies, 'b-o', label='Training Accuracy', linewidth=2, markersize=4)
+                handles.append(p_train)
+                labels.append('Training Accuracy')
+
+            val_accuracies = run_data.get('val_accuracy', [])
+            if any(pd.notna(acc) for acc in val_accuracies):
+                p_val, = ax.plot(epochs, val_accuracies, 'r-s', label='Validation Accuracy', linewidth=2, markersize=4)
+                handles.append(p_val)
+                labels.append('Validation Accuracy')
+
+                # Mark the maximum validation accuracy
+                val_accuracies_np = np.array(val_accuracies, dtype=float)
+                if np.any(~np.isnan(val_accuracies_np)):
+                    # Find index of maximum accuracy, handling NaN values
+                    valid_mask = ~np.isnan(val_accuracies_np)
+                    if np.any(valid_mask):
+                        valid_indices = np.where(valid_mask)[0]
+                        valid_values = val_accuracies_np[valid_mask]
+                        max_valid_idx = np.argmax(valid_values)
+                        max_val_idx = valid_indices[max_valid_idx]
+                        max_val_epoch = epochs[max_val_idx]
+                        max_val_acc = val_accuracies_np[max_val_idx]
+                        ax.axhline(max_val_acc, color='red', linestyle='--', linewidth=1, alpha=0.7)
+                        ax.axvline(max_val_epoch, color='red', linestyle='--', linewidth=1, alpha=0.7)
+                        ax.annotate(f"Max: {max_val_acc:.3f} @ E{int(max_val_epoch)}",
+                                    xy=(max_val_epoch, max_val_acc), xytext=(5, 15),
+                                    textcoords='offset points', fontsize=8, color='red')
+
+            ax.grid(True, alpha=0.3)
+            if valid_accuracies:
+                ax.set_ylim(np.maximum(0, global_acc_min * 0.95), np.minimum(1, global_acc_max * 1.05))
+            if handles: ax.legend(handles, labels, fontsize=8)
+            
+            # Display final accuracy from metrics
+            metrics = load_metrics(run_data['path'])
+            final_acc_text = "No metrics found"
+            if metrics and isinstance(metrics, dict):
+                final_acc = metrics.get("overall_accuracy", 0) * 100
+                final_acc_text = f"Final Accuracy: {final_acc:.2f}%"
+            ax.text(0.05, 0.05, final_acc_text, transform=ax.transAxes, fontsize=10,
+                    verticalalignment='bottom', bbox={"boxstyle": "round,pad=0.3", "fc": "white", "alpha": 0.7})
+
     save_dir = "outputs/training_results_visualization_classification"
     os.makedirs(save_dir, exist_ok=True)
     
     overall_path = os.path.join(save_dir, 'overall_loss_grid.png')
     detailed_path = os.path.join(save_dir, 'individual_loss_grid.png')
+    accuracy_path = os.path.join(save_dir, 'accuracy_evolution_grid.png')
     
     fig_overall.savefig(overall_path, dpi=300, bbox_inches='tight')
     fig_detailed.savefig(detailed_path, dpi=300, bbox_inches='tight')
+    fig_accuracy.savefig(accuracy_path, dpi=300, bbox_inches='tight')
     
     print(f"[info]: saved overall loss visualization to: {overall_path}")
     print(f"[info]: saved detailed loss visualization to: {detailed_path}")
+    print(f"[info]: saved accuracy evolution visualization to: {accuracy_path}")
     
     plt.show()
 

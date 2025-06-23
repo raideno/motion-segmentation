@@ -26,19 +26,17 @@ class TMR(torch.nn.Module):
         
         self.latent_dim = latent_dim
         
-        if pretrained:
-            self.model.load_state_dict(torch.load("/home/nadir/tmr-code/models/tmr_humanml3d_guoh3dfeats/last_weights/motion_encoder.pt"))
+        # if pretrained:
+        #     self.model.load_state_dict(torch.load("/home/nadir/tmr-code/models/tmr_humanml3d_guoh3dfeats/last_weights/motion_encoder.pt"))
             
-            for param in self.model.parameters():
-                param.requires_grad = False
+        #     for param in self.model.parameters():
+        #         param.requires_grad = False
             
-            self.model.eval()
+        self.model.eval()
         
     def forward(self, batch):
-        # preprocessed_motion, motion, transition_mask = batch
         preprocessed_motion = batch["transformed_motion"]
         motion = batch["motion"]
-        transition_mask = batch["annotation"]
         
         encoded = self.model({
             "x": preprocessed_motion.float(),
@@ -47,6 +45,7 @@ class TMR(torch.nn.Module):
         })
         
         dists = encoded.unbind(1)
+        
         mu, logvar = dists
             
         return mu

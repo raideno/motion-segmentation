@@ -25,10 +25,11 @@ class STGCNEncoder(torch.nn.Module):
     def forward(self, batch):
         preprocessed_motion = batch["transformed_motion"]
         motion = batch["motion"]
-        transition_mask = batch["annotation"]
         
         # (B, WINDOW_SIZE, 22, 3)
         x = motion
+        
+        x = x.float()
         
         # NOTE: x is of shape (B, T, F=263)
         B, W, N, C = x.size()
