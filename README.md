@@ -1,3 +1,7 @@
+**IMPORTANT:** The models have been moved & integrated into [https://github.com/raideno/moliner](https://github.com/raideno/moliner)
+
+---
+
 # Modified Version 2
 
 Start / End motion segmentation model; given a window, the model will predict whether it is a transition or not and if it is a transition it'll also predict its start and end positions.
